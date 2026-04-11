@@ -1,23 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Products Form</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    
 <h2 class="mb-4">Products</h2>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <div class="container">
     <div class="row">
-       <form method="POST">
-        @csrf
-        <div class="mb-3">
-            <label for="exampleInputEmail1" class="form-label">Email address</label>
-            <input type="email" class="form-control" id="exampleInputEmail1" aria-describedby="emailHelp">
-            <div id="emailHelp" class="form-text">We'll never share your email with anyone else.</div>
+
+        @foreach($products as $row)
+        <div class="col-md-3 mb-4">
+            <div class="card h-100 shadow-sm">
+
+                {{-- Product Image --}}
+                <img src="{{ asset('images/'.$row->image) }}" 
+                     class="card-img-top" 
+                     style="height:200px; object-fit:cover;" 
+                     alt="product">
+
+                <div class="card-body d-flex flex-column">
+
+                    {{-- Name --}}
+                    <h5 class="card-title">{{ $row->name }}</h5>
+
+                    {{-- Price --}}
+                    <p class="text-success fw-bold">₹ {{ $row->price }}</p>
+
+                    {{-- Description --}}
+                    <p class="card-text">{{ $row->description }}</p>
+
+                    {{-- Stock --}}
+                    <p class="text-muted">Stock: {{ $row->stock }}</p>
+
+                    {{-- Buttons --}}
+                    <div class="mt-auto">
+
+                        {{-- Add to Cart --}}
+                        <form action="{{ url('add_cart') }}" method="POST">
+                            @csrf
+                            <input type="hidden" name="product_id" value="{{ $row->id }}">
+                            <input type="hidden" name="quantity" value="1">
+                            <button class="btn btn-primary w-100 mb-2">
+                                Add to Cart
+                            </button>
+                        </form>
+
+                    </div>
+
+                </div>
+            </div>
         </div>
-        <div class="mb-3">
-            <label for="exampleInputPassword1" class="form-label">Password</label>
-            <input type="password" class="form-control" id="exampleInputPassword1">
-        </div>
-        <div class="mb-3 form-check">
-            <input type="checkbox" class="form-check-input" id="exampleCheck1">
-            <label class="form-check-label" for="exampleCheck1">Check me out</label>
-        </div>
-        <button type="submit" class="btn btn-primary">Submit</button>
-        </form>
+        @endforeach
+
     </div>
 </div>
+</body>
+</html>

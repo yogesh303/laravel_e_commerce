@@ -5,7 +5,10 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
-
+<form action="{{ route('logout') }}" method="POST">
+    @csrf
+    <button class="btn btn-danger">Logout</button>
+</form>
 <div class="container mt-5">
     <div class="card shadow">
         <div class="card-header bg-primary text-white">

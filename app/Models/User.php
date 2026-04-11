@@ -15,6 +15,12 @@ use Illuminate\Notifications\Notifiable;
 class User extends Authenticatable
 {
     protected $table = 'users';
+    protected $fillable = [
+        'name',
+        'email',
+        'password',
+        'role', // ✅ add this
+    ];
     function usermanydata(){
         return $this->hasMany(Order::class,'user_id');
     }
