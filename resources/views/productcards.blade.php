@@ -5,7 +5,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
-    
+<x-layout></x-layout>
 <h2 class="mb-4">Products</h2>
 <div class="container">
     <div class="row">

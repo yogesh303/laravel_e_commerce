@@ -32,7 +32,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/add_cart',[CartController::class,'add_cart']); // set cart of user product add
     Route::get('/cart_items',[CartController::class,'cart_items']); // display user cart
     Route::post('/add_quantity',[CartController::class,'add_quantity']); // improve quantity
-    Route::post('/order',[Products::class,'order']); // sussec order and reduce product quantity
+    Route::post('/order',[CartController::class,'order']); // sussec order and reduce product quantity
+    Route::get('/orders',[CartController::class,'order_list']); 
 });
 Route::post('/logout', [UserControl::class, 'logout'])->name('logout');
-Route::get('/order_list',[Products::class,'order_list']);
