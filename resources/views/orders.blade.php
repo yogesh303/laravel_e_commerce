@@ -7,7 +7,7 @@
 </head>
 <body>
 <x-layout></x-layout>
-<h2 class="mb-4">📦 Orders List</h2>
+<h2 class="mb-4 mt-2 text-center">Orders List</h2>
 
 <div class="container">
 
@@ -41,7 +41,6 @@
             <td>{{ $order->created_at }}</td>
 
             <td>
-                {{-- Order Items --}}
                 <table class="table table-sm table-bordered">
                     <tr>
                         <th>Product</th>

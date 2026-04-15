@@ -10,7 +10,7 @@
 <div class="container mt-5">
     <div class="card shadow">
         <div class="card-header bg-primary text-white">
-            <h4>Add Product</h4>
+            <h4 class="text-center">Add Product</h4>
         </div>
         <div class="card-body">
            @if(isset($products))
@@ -58,7 +58,7 @@
 
                 <!-- Submit -->
                 <button type="submit" class="btn btn-success">Save Product</button>
-                <a href="{{ url('/') }}" class="btn btn-secondary">Cancel</a>
+                <a href="{{ url('/products') }}" class="btn btn-secondary">Cancel</a>
             </form>
         </div>
     </div>

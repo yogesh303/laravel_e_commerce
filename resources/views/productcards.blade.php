@@ -6,7 +6,7 @@
 </head>
 <body>
 <x-layout></x-layout>
-<h2 class="mb-4">Products</h2>
+<h2 class="mb-4 mt-2 text-center">Products</h2>
 <div class="container">
     <div class="row">
 

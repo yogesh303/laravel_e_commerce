@@ -7,7 +7,7 @@
 <body>
 <x-layout></x-layout>
  
- <h2>Product list</h2>
+ <h2 class="mt-2 text-center">Product list</h2>
  <div class="container">
 <form action="delete_all" method="POST">
     @csrf

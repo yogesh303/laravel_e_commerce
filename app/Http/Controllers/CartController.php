@@ -166,7 +166,7 @@ class CartController extends Controller
 
             DB::commit();
 
-            return redirect()->back()->with('success', 'Order placed successfully');
+            return redirect('orders')->with('success', 'Order placed successfully');
 
             } catch (\Exception $e) {
                 DB::rollBack();
@@ -181,8 +181,14 @@ class CartController extends Controller
             return redirect()->back()->with('error', 'Please login');
         }
 
-        $orders = Order::with('items.product')
-            ->where('user_id', $user->id)->get();
+        if ($user->role === 'admin') {
+            $orders = Order::with('items.product')->get();
+        } 
+        else {
+            $orders = Order::with('items.product')
+                ->where('user_id', $user->id)
+                ->get();
+        }
 
         return view('orders', ['orders' => $orders]);
     }

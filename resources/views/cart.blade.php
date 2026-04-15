@@ -7,7 +7,7 @@
 </head>
 <body>
     <x-layout></x-layout>
-<h2 class="mb-4">🛒 Cart List</h2>
+<h2 class="mb-4 mt-2 text-center">Cart List</h2>
 <div class="container">
     @if(session('error'))
         <div class="alert alert-danger">
@@ -46,7 +46,6 @@
                 <td>
                     <div class="d-flex justify-content-center">
 
-                        {{-- Minus --}}
                         <form action="{{ url('add_quantity') }}" method="POST">
                             @csrf
                             <input type="hidden" name="product_id" value="{{ $item->product_id }}">
@@ -56,7 +55,6 @@
 
                         <span class="mx-2">{{ $item->quantity }}</span>
 
-                        {{-- Plus --}}
                         <form action="{{ url('add_quantity') }}" method="POST">
                             @csrf
                             <input type="hidden" name="product_id" value="{{ $item->product_id }}">
@@ -79,12 +77,10 @@
         </tbody>
     </table>
 
-    {{-- Grand Total --}}
     <div class="text-end">
         <h4>Total: ₹ {{ $grandTotal }}</h4>
     </div>
 
-    {{-- Order Button --}}
     @if(count($carts) > 0)
         <div class="text-end mt-3">
             <form action="order" method="POST">
