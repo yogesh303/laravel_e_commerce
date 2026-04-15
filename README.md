@@ -133,6 +133,8 @@ php artisan db:seed
   * `admin` → manage products
   * `user` → shop & order
 
+```
+
 ---
 
 ## 🛡️ Important Logic
