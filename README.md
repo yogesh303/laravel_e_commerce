@@ -93,7 +93,7 @@ This project includes product management, cart system, and order processing with
 ## ⚙️ Installation
 
 ```bash
-git clone https://github.com/your-repo/ecommerce.git
+git clone https://github.com/yogesh303/laravel_e_commerce.git
 cd ecommerce
 
 composer install
@@ -107,6 +107,23 @@ php artisan serve
 ```
 
 ---
+
+## 🌱 Database Seeder (Admin User)
+
+This project includes a default admin user.
+
+### 👤 Admin Credentials
+
+- Email: yogeshkanzariya71@gmail.com  
+- Password: admin123  
+
+---
+
+### ▶️ Run Seeder
+
+```bash
+php artisan db:seed
+
 
 ## 🔑 Authentication
 
