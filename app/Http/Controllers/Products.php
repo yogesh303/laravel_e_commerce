@@ -93,7 +93,8 @@ class Products extends Controller
     public function delete($id)
     {
         //
-        $products = ModelsProducts::destroy($id);
+        $products = ModelsProducts::find($id);
+        $products->delete();
         if($products){
             return redirect('product_list');
         }
