@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Mail\TestMail;
+use Illuminate\Support\Facades\Mail;
 
 
 class CartController extends Controller
@@ -51,23 +53,23 @@ class CartController extends Controller
         return redirect()->back()->with('success', 'Product added to cart');
 
     }
-    public function cart_items(){
+ public function cart_items()
+    {
         $user = Auth::user();
+
+        if (!$user) {
+            return redirect('/login');
+        }
 
         $cart = Cart::where('user_id', $user->id)->first();
 
         if (!$cart) {
-            return redirect()->back()->with('error', 'Please add item first');
+            return view('cart', ['carts' => []]); // ✅ no redirect
         }
 
-        $cart_items = CartItem::where('cart_id',$cart->id)->get();
+        $cart_items = CartItem::where('cart_id', $cart->id)->get();
 
-        if (!$cart_items) {
-            return redirect()->back()->with('error', 'Please add item first');
-        }
-
-        return view('cart',['carts'=>$cart_items]);
-
+        return view('cart', ['carts' => $cart_items]); // ✅ even if empty
     }
     public function add_quantity(Request $request){
         $user = Auth::user();
@@ -76,7 +78,10 @@ class CartController extends Controller
             return redirect()->back()->with('error', 'Please login first');
         }
 
-        $existingItem = CartItem::where('product_id',$request->product_id)->first();
+        $existingItem = CartItem::where('product_id', $request->product_id)
+            ->whereHas('cart', function ($q) {
+                $q->where('user_id', Auth::id());
+            })->first();
         if($request->action === 'add'){
         $existingItem->quantity += 1;
         } else {
@@ -166,11 +171,16 @@ class CartController extends Controller
 
             DB::commit();
 
+            $to = "yogeshkanzariya5@mail.com";
+            $msg = "hello this is body";
+            $subject = "Important Task";
+            Mail::to($to)->queue(new TestMail($msg, $subject));
+
             return redirect('orders')->with('success', 'Order placed successfully');
 
             } catch (\Exception $e) {
                 DB::rollBack();
-                return redirect()->back()->with('error', 'Something went wrong');
+                dd($e->getMessage()); // 👈 ADD THIS
             }
     }
     public function order_list()
