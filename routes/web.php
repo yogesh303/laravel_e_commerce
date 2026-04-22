@@ -10,7 +10,9 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::view('/login','login');
+Route::get('/login', function () {
+    return view('login');
+})->name('login');
 Route::post('/login_user',[UserControl::class,'login_user']);
 Route::view('/signup','signup');
 Route::post('/signup_user',[UserControl::class,'signup_user']);

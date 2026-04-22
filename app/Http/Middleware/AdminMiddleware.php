@@ -16,10 +16,15 @@ class AdminMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (Auth::check() && Auth::user()->role === 'admin') {
-            return $next($request); // allow
+
+        if (!Auth::check()) {
+            return redirect('/login')->with('error', 'Please login first');
         }
 
-        return redirect('products')->with('error', 'Access denied'); // block
+        if (Auth::user()->role !== 'admin') {
+            return redirect('/products')->with('error', 'Access denied');
+        }
+
+        return $next($request);
     }
 }

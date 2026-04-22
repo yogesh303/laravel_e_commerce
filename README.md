@@ -28,8 +28,8 @@ This project includes product management, cart system, and order processing with
   </tr>
   <tr>
     <td><img src="screenshots/s4.png" width="250"/></td>
-    <td><img src="screenshots/s5.png" width="250"/></td>
-    <td><img src="screenshots/s6.png" width="250"/></td>
+    <td><img src="screenshots/s9.png" width="250"/></td>
+    <td><img src="screenshots/s10.png" width="250"/></td>
   </tr>
   <tr>
     <td><img src="screenshots/s7.png" width="250"/></td>

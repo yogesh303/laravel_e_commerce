@@ -2,6 +2,9 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Products Form</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
@@ -10,6 +13,9 @@
 <h2 class="mb-4 mt-2 text-center">Orders List</h2>
 
 <div class="container">
+@php
+    $user_role = Auth::user()->role;
+@endphp
 
 <form action="delete_all" method="POST">
     @csrf
@@ -19,10 +25,13 @@
             <tr>
                 <th>#</th>
                 <th>Order ID</th>
+                <th>user</th>
                 <th>Total</th>
                 <th>Date</th>
                 <th>Items</th>
+                @if ($user_role === 'admin')
                 <th>Action</th>
+                @endif
             </tr>
         </thead>
 
@@ -36,9 +45,11 @@
 
             <td>{{ $order->id }}</td>
 
+            <td>{{ $order->user->name }}</td>
+
             <td>₹ {{ $order->total_price }}</td>
 
-            <td>{{ $order->created_at }}</td>
+            <td>{{ $order->created_at->format('d-m-Y') }}</td>
 
             <td>
                 <table class="table table-sm table-bordered">
@@ -57,10 +68,11 @@
                     @endforeach
                 </table>
             </td>
-
+            @if ($user_role === 'admin')
             <td>
                 <a href="delete_order/{{ $order->id }}" class="btn btn-danger btn-sm">Delete</a>
             </td>
+            @endif
         </tr>
         @endforeach
 
@@ -70,5 +82,6 @@
 </form>
 
 </div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.min.js"></script>
 </body>
 </html>

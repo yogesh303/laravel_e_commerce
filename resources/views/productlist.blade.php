@@ -1,6 +1,9 @@
  <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Products Form</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
@@ -14,10 +17,10 @@
     <table class="table table-bordered text-center">
         <thead class="table-dark">
             <th>#</th>
-            <th>Name</th>
-            <th>class</th>
-            <th>roll_no</th>
-            <th>address</th>
+            <th>Product</th>
+            <th>Price</th>
+            <th>description</th>
+            <th>Stock</th>
             <th>Action</th>
         </thead>
         @foreach($products as $row)
@@ -33,5 +36,6 @@
     </table>
 </form>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.min.js"></script>
 </body>
 </html>
