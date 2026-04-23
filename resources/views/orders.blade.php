@@ -13,6 +13,17 @@
 <h2 class="mb-4 mt-2 text-center">Orders List</h2>
 
 <div class="container">
+@if(session('success'))
+    <div class="alert alert-success text-center">
+        {{ session('success') }}
+    </div>
+@endif
+
+@if(session('error'))
+    <div class="alert alert-danger text-center">
+        {{ session('error') }}
+    </div>
+@endif
 @php
     $user_role = Auth::user()->role;
 @endphp

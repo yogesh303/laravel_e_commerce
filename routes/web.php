@@ -36,5 +36,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/add_quantity',[CartController::class,'add_quantity']); // improve quantity
     Route::post('/order',[CartController::class,'order']); // sussec order and reduce product quantity
     Route::get('/orders',[CartController::class,'order_list']); 
+    Route::get('/payment-success', [CartController::class, 'payment_success']);
+    Route::get('/checkout', [CartController::class, 'checkout']);
+    Route::get('/dashboard', [UserControl::class, 'dashboard']);
 });
 Route::post('/logout', [UserControl::class, 'logout'])->name('logout');

@@ -88,10 +88,13 @@
         <div class="text-end mt-3">
             <form action="order" method="POST">
                 @csrf
-            <button name="submit" class="btn btn-primary">
+            <!-- <button name="submit" class="btn btn-primary">
                 Place Order 🚀
-            </button>
+            </button> -->
             </form>
+            <a href="{{ url('checkout') }}" class="btn btn-success">
+                Pay with Stripe
+            </a>
         </div>
     @endif
 </div>

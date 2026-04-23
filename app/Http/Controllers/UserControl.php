@@ -2,17 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Order;
+use App\Models\products;
 use App\Models\User;
 use Illuminate\Http\Request;
 
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
+
 class UserControl extends Controller
 {
     //
     public function login_user(Request $data){
-         $validated = $data->validate([
+        $validated = $data->validate([
             'email' => 'required|string|email|max:255',
             'password' => 'required|string',
         ]);
@@ -27,7 +30,7 @@ class UserControl extends Controller
 
         Auth::login($email);
 
-        return redirect('products');
+        return redirect('dashboard');
 
     }
     public function signup_user(Request $data){
@@ -55,5 +58,17 @@ class UserControl extends Controller
         Auth::logout(); // remove session
 
         return redirect('/login');
+    }
+    public function dashboard()
+    {
+        $totalProducts = Products::count();
+        $totalOrders = Order::count();
+        $totalPrice = Order::totalRevenue();
+
+        return view('dashboard', [
+            'totalProducts' => $totalProducts,
+            'totalOrders' => $totalOrders,
+            'totalPrice' => $totalPrice
+        ]);
     }
 }

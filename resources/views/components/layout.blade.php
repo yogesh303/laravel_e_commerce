@@ -1,7 +1,11 @@
+@php
+    $user_role = Auth::user()->role;
+    $user_email = Auth::user()->email;
+@endphp
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container">
 
-        <a class="navbar-brand" href="{{ url('products') }}">
+        <a class="navbar-brand" href="{{ url('dashboard') }}">
             🛒 E-Commerce
         </a>
 
@@ -40,6 +44,11 @@
             <ul class="navbar-nav">
 
                 <li class="nav-item">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">{{$user_email}}</a>
+                    </li>
+                </li>
+                <li class="nav-item" style="padding-top: 4px;">
                     <form action="{{ route('logout') }}" method="POST">
                         @csrf
                         <button class="btn btn-danger btn-sm">Logout</button>

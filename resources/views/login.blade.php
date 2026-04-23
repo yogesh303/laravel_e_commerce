@@ -47,9 +47,11 @@
 
             <h3 class="text-center mb-4 login-title">Login</h3>
 
-            @if(session('error'))
+            @if ($errors->any())
                 <div class="alert alert-danger">
-                    {{ session('error') }}
+                    @foreach ($errors->all() as $error)
+                        <div>{{ $error }}</div>
+                    @endforeach
                 </div>
             @endif
 

@@ -12,7 +12,8 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Mail\TestMail;
 use Illuminate\Support\Facades\Mail;
-
+use Stripe\Stripe;
+use Stripe\Checkout\Session;
 
 class CartController extends Controller
 {
@@ -53,7 +54,7 @@ class CartController extends Controller
         return redirect()->back()->with('success', 'Product added to cart');
 
     }
- public function cart_items()
+    public function cart_items()
     {
         $user = Auth::user();
 
@@ -94,6 +95,55 @@ class CartController extends Controller
         }
         $existingItem->save();
         return redirect()->back();
+    }
+    public function checkout()
+    {
+        $user = Auth::user();
+
+        if (!$user) {
+            return redirect()->back()->with('error', 'Please login');
+        }
+
+        $cart = Cart::where('user_id', $user->id)->first();
+
+        if (!$cart) {
+            return redirect()->back()->with('error', 'Cart not found');
+        }
+
+        $items = CartItem::where('cart_id', $cart->id)->get();
+
+        if ($items->isEmpty()) {
+            return redirect()->back()->with('error', 'Cart is empty');
+        }
+
+        Stripe::setApiKey(env('STRIPE_SECRET'));
+
+        $lineItems = [];
+
+        foreach ($items as $item) {
+            $product = Products::find($item->product_id);
+
+            $lineItems[] = [
+                'price_data' => [
+                    'currency' => 'inr',
+                    'product_data' => [
+                        'name' => $product->name,
+                    ],
+                    'unit_amount' => $product->price * 100, // paise
+                ],
+                'quantity' => $item->quantity,
+            ];
+        }
+
+        $session = Session::create([
+            'payment_method_types' => ['card'],
+            'line_items' => $lineItems,
+            'mode' => 'payment',
+            'success_url' => url('/payment-success'),
+            'cancel_url' => url('/cart'),
+        ]);
+
+        return redirect($session->url);
     }
     public function order(Request $request)
     {
@@ -182,6 +232,17 @@ class CartController extends Controller
                 DB::rollBack();
                 dd($e->getMessage()); // 👈 ADD THIS
             }
+    }
+    public function payment_success()
+    {
+        $user = Auth::user();
+
+        if (!$user) {
+            return redirect('/login');
+        }
+
+        // 👉 CALL YOUR EXISTING ORDER LOGIC HERE
+        return $this->order(new Request());
     }
     public function order_list()
     {
