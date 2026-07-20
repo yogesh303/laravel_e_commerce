@@ -29,6 +29,9 @@ class Products extends Controller
             'stock'=> $request->stock,
             'image' => $imageName,
         ]);
+        $products = ModelsProducts::where('id',$request->id)->update([
+            'name' => $request->name,
+        ]);
         if($products){
             return redirect('product_list');
         }
