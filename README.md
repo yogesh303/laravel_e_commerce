@@ -152,11 +152,19 @@ php artisan db:seed
 * Reduces stock after success
 * Clears cart after order
 
+### ✔ Stripe Payment
+
+* Secure payment processing using Stripe Checkout
+* Creates Stripe Checkout Session
+* Redirects users to Stripe's hosted payment page
+* Verifies successful payment before creating the order
+* Cancels payment safely without affecting the cart
+* Supports test mode and live mode configuration via `.env`
+
 ---
 
 ## 🎯 Future Improvements
 
-* Payment Integration (Razorpay / Stripe)
 * Order Status (Pending / Delivered)
 * User Profile Page
 * Admin Dashboard
