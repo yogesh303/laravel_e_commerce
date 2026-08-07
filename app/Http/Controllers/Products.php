@@ -2,108 +2,202 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\CartItem;
 use App\Models\products as ModelsProducts;
-
-
+use App\Models\ProductImage;
+use App\Models\ProductOption;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class Products extends Controller
 {
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        //
-        $imageName = '';
+        DB::beginTransaction();
 
-        if ($request->hasFile('image')) {
-            $imageName = time().'.'.$request->image->extension();
-            $request->image->move(public_path('images'), $imageName);
-        }
-        $products = ModelsProducts::create([
-            'name'=> $request->name,
-            'price'=> $request->price,
-            'description'=> $request->description,
-            'stock'=> $request->stock,
-            'image' => $imageName,
-        ]);
-        $products = ModelsProducts::where('id',$request->id)->update([
-            'name' => $request->name,
-        ]);
-        if($products){
+        try {
+            $imageName = '';
+
+            if ($request->hasFile('image')) {
+                $imageName = time() . '.' . $request->image->extension();
+                $request->image->move(public_path('images'), $imageName);
+            }
+
+            $product = ModelsProducts::create([
+                'name'        => $request->name,
+                'price'       => $request->price,
+                'description' => $request->description,
+                'stock'       => $request->stock,
+                'image'       => $imageName,
+            ]);
+
+            $this->saveGalleryImages($request, $product);
+            $this->saveOptions($request, $product);
+
+            DB::commit();
+
             return redirect('product_list');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['error' => $e->getMessage()])->withInput();
         }
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show()
     {
-        //
-        $products = ModelsProducts::all();
-        return view('productlist',['products'=>$products]);
-        
+        $products = ModelsProducts::with(['images', 'options'])->get();
+        return view('productlist', ['products' => $products]);
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(string $id)
     {
-        //
-        $products = ModelsProducts::find($id);
+        $products = ModelsProducts::with(['images', 'options'])->find($id);
         return view('productform', ['products' => $products]);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request)
     {
-        //
-        $id = $request->id;
-        $products = ModelsProducts::find($id);
+        DB::beginTransaction();
 
-        $products->name = $request->name;
-        $products->price = $request->price;
-        $products->description = $request->description;
-        $products->stock = $request->stock;
+        try {
+            $id = $request->id;
+            $product = ModelsProducts::find($id);
 
-        if ($request->hasFile('image')) {
+            $product->name        = $request->name;
+            $product->price       = $request->price;
+            $product->description = $request->description;
+            $product->stock       = $request->stock;
 
-            if ($products->image && file_exists(public_path('images/' . $products->image))) {
-                unlink(public_path('images/' . $products->image));
+            // Replace main image
+            if ($request->hasFile('image')) {
+                if ($product->image && file_exists(public_path('images/' . $product->image))) {
+                    unlink(public_path('images/' . $product->image));
+                }
+
+                $imageName = time() . '.' . $request->image->extension();
+                $request->image->move(public_path('images'), $imageName);
+                $product->image = $imageName;
             }
 
-            $imageName = time().'.'.$request->image->extension();
-            $request->image->move(public_path('images'), $imageName);
+            $product->save();
 
-            $products->image = $imageName;
+            // Remove gallery images the user deleted in the form
+            if ($request->filled('remove_images')) {
+                $toRemove = ProductImage::where('product_id', $product->id)
+                    ->whereIn('id', $request->remove_images)
+                    ->get();
+
+                foreach ($toRemove as $img) {
+                    if (file_exists(public_path('images/' . $img->image))) {
+                        unlink(public_path('images/' . $img->image));
+                    }
+                    $img->delete();
+                }
+            }
+
+            // Update "customizable" checkbox state on remaining existing images
+            if ($request->filled('existing_images')) {
+                foreach ($request->existing_images as $imgId) {
+                    $isCustomizable = $request->has("existing_customizable_{$imgId}");
+                    ProductImage::where('id', $imgId)->update(['is_customizable' => $isCustomizable]);
+                }
+            }
+
+            // Add any newly uploaded gallery images
+            $this->saveGalleryImages($request, $product);
+
+            // Replace dynamic options (simplest reliable approach: wipe + recreate)
+            ProductOption::where('product_id', $product->id)->delete();
+            $this->saveOptions($request, $product);
+
+            DB::commit();
+
+            return redirect('product_list');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['error' => $e->getMessage()])->withInput();
+        }
+    }
+
+    public function delete($id)
+    {
+        $product = ModelsProducts::with('images')->find($id);
+
+        if (!$product) {
+            return redirect('product_list');
         }
 
-        $products->save();
-        if($products){
-            return redirect('product_list');
+        // Delete main image file
+        if ($product->image && file_exists(public_path('images/' . $product->image))) {
+            unlink(public_path('images/' . $product->image));
+        }
+
+        // Delete every gallery image file
+        foreach ($product->images as $img) {
+            if (file_exists(public_path('images/' . $img->image))) {
+                unlink(public_path('images/' . $img->image));
+            }
+        }
+
+        // product_images + product_options rows auto-delete via onDelete('cascade')
+        $product->delete();
+
+        return redirect('product_list');
+    }
+
+    public function products_card()
+    {
+        $products = ModelsProducts::with(['images', 'options'])->get();
+        return view('productcards', ['products' => $products]);
+    }
+
+    /**
+     * Handle multiple gallery image uploads + their "customizable" checkboxes.
+     * Expects: images[] (files) and customizable[] (checkbox per index, e.g. customizable[0], customizable[2])
+     */
+    private function saveGalleryImages(Request $request, $product)
+    {
+        if (!$request->hasFile('images')) {
+            return;
+        }
+
+        foreach ($request->file('images') as $index => $file) {
+            if (!$file) {
+                continue;
+            }
+
+            $imageName = time() . '_' . $index . '_' . uniqid() . '.' . $file->extension();
+            $file->move(public_path('images'), $imageName);
+
+            ProductImage::create([
+                'product_id'      => $product->id,
+                'image'           => $imageName,
+                'is_customizable' => $request->has("customizable.$index"),
+            ]);
         }
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Handle dynamic option fields.
+     * Expects: options[][name] = "Size", options[][values] = "S,M,L,XL"
      */
-    public function delete($id)
+    private function saveOptions(Request $request, $product)
     {
-        //
-        $products = ModelsProducts::find($id);
-        $products->delete();
-        if($products){
-            return redirect('product_list');
+        if (!$request->filled('options')) {
+            return;
         }
-    }
-    public function products_card(){
-        $products = ModelsProducts::all();
-        return view('productcards',['products'=>$products]);
+
+        foreach ($request->options as $option) {
+            if (empty($option['name']) || empty($option['values'])) {
+                continue;
+            }
+
+            ProductOption::create([
+                'product_id' => $product->id,
+                'name'       => $option['name'],
+                'values'     => $option['values'],
+            ]);
+        }
     }
 }

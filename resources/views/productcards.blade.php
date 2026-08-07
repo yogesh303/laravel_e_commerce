@@ -39,6 +39,10 @@
 
                     {{-- Buttons --}}
                     <div class="mt-auto">
+                        <a href="{{ route('product.customize', $row->id) }}"
+                        class="btn btn-warning w-100">
+                            🎨 Customize Product
+                        </a>
 
                         {{-- Add to Cart --}}
                         <form action="{{ url('add_cart') }}" method="POST">

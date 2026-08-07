@@ -22,4 +22,13 @@ class products extends Model
     {
         return $this->hasMany(CartItem::class);
     }
+    public function images()
+    {
+        return $this->hasMany(ProductImage::class, 'product_id');
+    }
+
+    public function options()
+    {
+        return $this->hasMany(ProductOption::class, 'product_id');
+    }
 }

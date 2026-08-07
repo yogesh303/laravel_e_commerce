@@ -41,7 +41,9 @@
                 <th>Date</th>
                 <th>Items</th>
                 @if ($user_role === 'admin')
-                <th>Action</th>
+                    <th>Action</th>
+                @else
+                    <th>View</th>
                 @endif
             </tr>
         </thead>
@@ -79,11 +81,19 @@
                     @endforeach
                 </table>
             </td>
-            @if ($user_role === 'admin')
             <td>
-                <a href="delete_order/{{ $order->id }}" class="btn btn-danger btn-sm">Delete</a>
+                <a href="{{ route('order.view', $order->id) }}"
+                class="btn btn-primary btn-sm">
+                    View Order
+                </a><br>
+
+                @if ($user_role === 'admin')
+                    <a href="{{ url('delete_order/'.$order->id) }}"
+                    class="btn btn-danger btn-sm">
+                        Delete
+                    </a>
+                @endif
             </td>
-            @endif
         </tr>
         @endforeach
 

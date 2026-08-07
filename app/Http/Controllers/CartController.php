@@ -47,14 +47,13 @@ class CartController extends Controller
                 'cart_id' => $cart->id,
                 'product_id' => $request->product_id,
                 'quantity' => 1,
-                'price' => $request->price ?? 0,
             ]);
         }
 
         return redirect()->back()->with('success', 'Product added to cart');
 
     }
-    public function cart_items()
+    public function cart()
     {
         $user = Auth::user();
 
@@ -101,19 +100,19 @@ class CartController extends Controller
         $user = Auth::user();
 
         if (!$user) {
-            return redirect()->back()->with('error', 'Please login');
+            return redirect('/login')->with('error', 'Please login');
         }
 
         $cart = Cart::where('user_id', $user->id)->first();
 
         if (!$cart) {
-            return redirect()->back()->with('error', 'Cart not found');
+            return redirect('/cart')->with('error', 'Cart not found');
         }
 
         $items = CartItem::where('cart_id', $cart->id)->get();
 
         if ($items->isEmpty()) {
-            return redirect()->back()->with('error', 'Cart is empty');
+            return redirect('/cart')->with('error', 'Cart is empty');
         }
 
         Stripe::setApiKey(env('STRIPE_SECRET'));
@@ -121,31 +120,51 @@ class CartController extends Controller
         $lineItems = [];
 
         foreach ($items as $item) {
+
             $product = Products::find($item->product_id);
+
+            if (!$product) {
+                continue;
+            }
 
             $lineItems[] = [
                 'price_data' => [
                     'currency' => 'inr',
+
                     'product_data' => [
                         'name' => $product->name,
                     ],
-                    'unit_amount' => $product->price * 100, // paise
+
+                    'unit_amount' => (int) ($product->price * 100),
                 ],
+
                 'quantity' => $item->quantity,
             ];
         }
 
+        if (empty($lineItems)) {
+            return redirect('/cart')
+                ->with('error', 'No valid products found in cart');
+        }
+
         $session = Session::create([
+
             'payment_method_types' => ['card'],
+
             'line_items' => $lineItems,
+
             'mode' => 'payment',
-            'success_url' => url('/payment-success'),
+
+            'customer_email' => $user->email,
+
+            'success_url' => url('/payment-success') . '?session_id={CHECKOUT_SESSION_ID}',
+
             'cancel_url' => url('/cart'),
         ]);
 
         return redirect($session->url);
     }
-    public function order(Request $request)
+    public function order($session = null)
     {
         $user = Auth::user();
 
@@ -207,6 +226,7 @@ class CartController extends Controller
                     'product_id' => $product->id,
                     'quantity' => $item->quantity,
                     'price' => $product->price,
+                    'custom_image' => $item->custom_image,
                 ]);
 
                 $product->stock -= $item->quantity;
@@ -222,9 +242,10 @@ class CartController extends Controller
             DB::commit();
 
             $to = "yogeshkanzariya5@mail.com";
-            $msg = "hello this is body";
-            $subject = "Important Task";
-            Mail::to($to)->queue(new TestMail($msg, $subject));
+
+            Mail::to($to)->send(
+                new TestMail($order)
+            );
 
             return redirect('orders')->with('success', 'Order placed successfully');
 
@@ -233,7 +254,7 @@ class CartController extends Controller
                 dd($e->getMessage()); // 👈 ADD THIS
             }
     }
-    public function payment_success()
+    public function payment_success(Request $request)
     {
         $user = Auth::user();
 
@@ -241,8 +262,36 @@ class CartController extends Controller
             return redirect('/login');
         }
 
-        // 👉 CALL YOUR EXISTING ORDER LOGIC HERE
-        return $this->order(new Request());
+        if (!$request->session_id) {
+            return redirect('/cart')
+                ->with('error', 'Invalid payment session.');
+        }
+
+        Stripe::setApiKey(env('STRIPE_SECRET'));
+
+        try {
+
+            $session = Session::retrieve($request->session_id);
+
+            if ($session->payment_status !== 'paid') {
+
+                return redirect('/cart')
+                    ->with('error', 'Payment was not completed.');
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Payment successful
+            |--------------------------------------------------------------------------
+            */
+
+            return $this->order($session);
+
+        } catch (\Exception $e) {
+
+            return redirect('/cart')
+                ->with('error', 'Unable to verify payment.');
+        }
     }
     public function order_list()
     {
@@ -263,5 +312,184 @@ class CartController extends Controller
 
         return view('orders', ['orders' => $orders]);
     }
+    public function order_view($id)
+    {
+        $user = Auth::user();
 
+        if (!$user) {
+            return redirect('/login');
+        }
+
+        $order = Order::with([
+            'user',
+            'items.product'
+        ])->findOrFail($id);
+
+        // Normal user can only see their own order
+        if ($user->role !== 'admin' && $order->user_id != $user->id) {
+            abort(403);
+        }
+
+        return view('order_view', compact('order'));
+    }
+   public function customize($id)
+    {
+        $product = Products::findOrFail($id);
+
+        return view('customize', compact('product'));
+    }
+
+
+    public function saveCustomization(Request $request, $id)
+    {
+        $user = Auth::user();
+
+        if (!$user) {
+            return redirect('/login');
+        }
+
+        $product = Products::findOrFail($id);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Validate Customized Image
+        |--------------------------------------------------------------------------
+        */
+
+        $request->validate([
+            'custom_image' => 'required|string',
+        ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Get / Create Cart
+        |--------------------------------------------------------------------------
+        */
+
+        $cart = Cart::firstOrCreate([
+            'user_id' => $user->id,
+        ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Get Base64 Image
+        |--------------------------------------------------------------------------
+        */
+
+        $imageData = $request->custom_image;
+
+        /*
+        | Example:
+        | data:image/png;base64,iVBORw0KGgo...
+        */
+
+        if (!preg_match('/^data:image\/(\w+);base64,/', $imageData, $matches)) {
+
+            return redirect()->back()
+                ->with('error', 'Invalid customized image.');
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Remove Base64 Header
+        |--------------------------------------------------------------------------
+        */
+
+        $imageData = substr(
+            $imageData,
+            strpos($imageData, ',') + 1
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Decode Image
+        |--------------------------------------------------------------------------
+        */
+
+        $imageData = base64_decode($imageData);
+
+        if ($imageData === false) {
+
+            return redirect()->back()
+                ->with('error', 'Unable to process customized image.');
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Get Image Extension
+        |--------------------------------------------------------------------------
+        */
+
+        $extension = strtolower($matches[1]);
+
+        if ($extension === 'jpeg') {
+            $extension = 'jpg';
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Create Upload Folder
+        |--------------------------------------------------------------------------
+        */
+
+        $folder = public_path('uploads/customizations');
+
+        if (!file_exists($folder)) {
+            mkdir($folder, 0755, true);
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Generate Filename
+        |--------------------------------------------------------------------------
+        */
+
+        $filename = time() . '_' . uniqid() . '.' . $extension;
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Save Customized Image
+        |--------------------------------------------------------------------------
+        */
+
+        file_put_contents(
+            $folder . '/' . $filename,
+            $imageData
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Add Product To Cart
+        |--------------------------------------------------------------------------
+        */
+
+        CartItem::create([
+            'cart_id' => $cart->id,
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'custom_image' => $filename,
+        ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Redirect To Cart
+        |--------------------------------------------------------------------------
+        */
+
+        return redirect('/cart')
+            ->with('success', 'Customized product added to cart!');
+    }
 }
+

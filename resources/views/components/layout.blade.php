@@ -22,7 +22,7 @@
                 </li>
 
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url('cart_items') }}">My Cart</a>
+                    <a class="nav-link" href="{{ url('cart') }}">My Cart</a>
                 </li>
 
                 <li class="nav-item">

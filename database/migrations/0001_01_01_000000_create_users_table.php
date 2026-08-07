@@ -43,6 +43,7 @@ return new class extends Migration
             $table->integer('cart_id');
             $table->integer('product_id');
             $table->integer('quantity');
+            $table->integer('custom_image');
             $table->timestamps();
         });
 
@@ -60,6 +61,7 @@ return new class extends Migration
             $table->integer('product_id');
             $table->integer('quantity');
             $table->integer('price');
+            $table->integer('custom_image');
             $table->timestamps();
         });
 

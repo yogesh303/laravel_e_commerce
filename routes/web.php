@@ -4,6 +4,7 @@ use App\Http\Controllers\CartController;
 use App\Http\Controllers\Products;
 use App\Http\Controllers\UserControl;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Mail;
 
 
 Route::get('/', function () {
@@ -32,7 +33,7 @@ Route::middleware('auth')->group(function () {
 
 Route::middleware('auth')->group(function () {
     Route::post('/add_cart',[CartController::class,'add_cart']); // set cart of user product add
-    Route::get('/cart_items',[CartController::class,'cart_items']); // display user cart
+    Route::get('/cart',[CartController::class,'cart']); // display user cart
     Route::post('/add_quantity',[CartController::class,'add_quantity']); // improve quantity
     Route::post('/order',[CartController::class,'order']); // sussec order and reduce product quantity
     Route::get('/orders',[CartController::class,'order_list']); 
@@ -41,3 +42,28 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [UserControl::class, 'dashboard']);
 });
 Route::post('/logout', [UserControl::class, 'logout'])->name('logout');
+
+Route::get('/product/{id}/customize', [CartController::class, 'customize'])
+    ->name('product.customize');
+
+Route::post('/product/{id}/customize', [CartController::class, 'saveCustomization'])
+    ->name('product.customize.save');
+
+Route::get('/order/{id}', [CartController::class, 'order_view'])
+    ->name('order.view');
+
+Route::get('/test-mail', function () {
+
+    Mail::raw(
+        'Laravel mail test is working!',
+        function ($message) {
+
+            $message
+                ->to('yogeshkanzariya5@mail.com')
+                ->subject('Laravel Test Email');
+
+        }
+    );
+
+    return 'Mail sent';
+});
