@@ -37,6 +37,10 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url('product_form') }}">Add Product</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url('categories') }}">Add Categories</a>
+                    </li>
+     
                 @endif
 
             </ul>

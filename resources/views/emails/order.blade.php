@@ -3,7 +3,6 @@
 
 <head>
     <meta charset="UTF-8">
-
     <title>New Order</title>
 </head>
 
@@ -48,8 +47,28 @@
                 ₹ {{ $item->price }}
             </p>
 
+            @if(!empty($item->selected_options) && count($item->selected_options))
+                <p>
+                    @foreach($item->selected_options as $optName => $optValue)
+                        <strong>{{ $optName }}:</strong> {{ $optValue }}&nbsp;&nbsp;
+                    @endforeach
+                </p>
+            @endif
 
-            @if($item->custom_image)
+            @if(!empty($item->custom_images) && count($item->custom_images))
+
+                <p>
+                    <strong>Customized Product ({{ count($item->custom_images) }} image(s)):</strong>
+                </p>
+
+                @foreach($item->custom_images as $img)
+                    <img
+                        src="{{ asset('uploads/customizations/' . $img) }}"
+                        style="max-width:300px; border:1px solid #ddd; margin:5px;"
+                    >
+                @endforeach
+
+            @elseif($item->custom_image)
 
                 <p>
                     <strong>Customized Product:</strong>

@@ -114,9 +114,28 @@
                     {{-- Image --}}
                     <div class="col-md-3 text-center">
 
-                        @if($item->custom_image)
+                        @if(!empty($item->custom_images) && count($item->custom_images))
 
-                            {{-- Customized Image --}}
+                            {{-- All Customized Images (front, back, etc.) --}}
+                            <div class="d-flex flex-wrap gap-2 justify-content-center">
+                                @foreach($item->custom_images as $img)
+                                    <img
+                                        src="{{ asset('uploads/customizations/'.$img) }}"
+                                        class="img-fluid rounded border"
+                                        style="max-height:120px; max-width:120px; object-fit:contain;"
+                                        alt="Customized Product">
+                                @endforeach
+                            </div>
+
+                            <div class="mt-2">
+                                <span class="badge bg-primary">
+                                    Customized ({{ count($item->custom_images) }})
+                                </span>
+                            </div>
+
+                        @elseif($item->custom_image)
+
+                            {{-- Customized Image (legacy single-image rows) --}}
                             <img
                                 src="{{ asset('uploads/customizations/'.$item->custom_image) }}"
                                 class="img-fluid rounded border"
@@ -124,11 +143,9 @@
                                 alt="Customized Product">
 
                             <div class="mt-2">
-
                                 <span class="badge bg-primary">
                                     Customized
                                 </span>
-
                             </div>
 
                         @elseif($item->product && $item->product->image)
@@ -155,13 +172,18 @@
                     <div class="col-md-6">
 
                         <h4>
-
                             {{ $item->product->name ?? 'Product Deleted' }}
-
                         </h4>
 
+                        @if(!empty($item->selected_options) && count($item->selected_options))
+                            <div class="mb-2">
+                                @foreach($item->selected_options as $optName => $optValue)
+                                    <span class="badge bg-light text-dark border me-1">{{ $optName }}: {{ $optValue }}</span>
+                                @endforeach
+                            </div>
+                        @endif
 
-                        @if($item->custom_image)
+                        @if($item->custom_image || (!empty($item->custom_images) && count($item->custom_images)))
 
                             <p class="text-primary">
 

@@ -3,22 +3,31 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use App\Models\products;
 
 class OrderItem extends Model
 {
-    //
-    protected $table = 'order_items';
-
     protected $fillable = [
         'order_id',
         'product_id',
         'quantity',
         'price',
-        'custom_image'
+        'custom_image',
+        'custom_images',
+        'selected_options',
     ];
 
-    public function product(){
-        return $this->belongsTo(Products::class);
+    protected $casts = [
+        'custom_images'    => 'array',
+        'selected_options' => 'array',
+    ];
+
+    public function product()
+    {
+        return $this->belongsTo(products::class, 'product_id');
+    }
+
+    public function order()
+    {
+        return $this->belongsTo(Order::class);
     }
 }

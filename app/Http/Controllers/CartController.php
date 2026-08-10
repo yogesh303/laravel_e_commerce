@@ -14,44 +14,62 @@ use App\Mail\TestMail;
 use Illuminate\Support\Facades\Mail;
 use Stripe\Stripe;
 use Stripe\Checkout\Session;
+use App\Mail\CustomizationMail;
 
 class CartController extends Controller
 {
     //
     public function add_cart(Request $request){
-        $user = Auth::user();
+    $user = Auth::user();
 
-        if (!$user) {
-            return redirect()->back()->with('error', 'Please login first');
-        }
+    if (!$user) {
+        return redirect()->back()->with('error', 'Please login first');
+    }
 
-        $cart = Cart::where('user_id', $user->id)->first();
+    $cart = Cart::where('user_id', $user->id)->first();
 
-        if (!$cart) {
-            $cart = Cart::create([
-                'user_id' => $user->id,
-            ]);
-        }
+    if (!$cart) {
+        $cart = Cart::create([
+            'user_id' => $user->id,
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Collect selected options (Size, Color, etc.) from the product page
+    | Expected input: options[Size] = M, options[Color] = White
+    |--------------------------------------------------------------------------
+    */
+
+    $selectedOptions = $request->filled('options') ? $request->options : null;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Only merge quantity into an existing row if it's the SAME product
+    | with the SAME selected options and no custom image. A plain
+        | "Add to Cart" click should never merge into a customized row.
+        |--------------------------------------------------------------------------
+        */
 
         $existingItem = CartItem::where('cart_id', $cart->id)
             ->where('product_id', $request->product_id)
+            ->whereNull('custom_image')
+            ->where('selected_options', json_encode($selectedOptions))
             ->first();
 
         if ($existingItem) {
-         
             $existingItem->quantity += 1;
             $existingItem->save();
         } else {
-        
             CartItem::create([
-                'cart_id' => $cart->id,
-                'product_id' => $request->product_id,
-                'quantity' => 1,
+                'cart_id'          => $cart->id,
+                'product_id'       => $request->product_id,
+                'quantity'         => 1,
+                'selected_options' => $selectedOptions,
             ]);
         }
 
         return redirect()->back()->with('success', 'Product added to cart');
-
     }
     public function cart()
     {
@@ -72,18 +90,30 @@ class CartController extends Controller
         return view('cart', ['carts' => $cart_items]); // ✅ even if empty
     }
     public function add_quantity(Request $request){
-        $user = Auth::user();
+    $user = Auth::user();
 
-         if (!$user) {
-            return redirect()->back()->with('error', 'Please login first');
-        }
+    if (!$user) {
+        return redirect()->back()->with('error', 'Please login first');
+    }
 
-        $existingItem = CartItem::where('product_id', $request->product_id)
-            ->whereHas('cart', function ($q) {
-                $q->where('user_id', Auth::id());
-            })->first();
-        if($request->action === 'add'){
-        $existingItem->quantity += 1;
+    /*
+    |--------------------------------------------------------------------------
+    | Target the exact cart row (fixes wrong item being updated when
+    | a product has multiple rows — e.g. front/back customizations)
+    |--------------------------------------------------------------------------
+    */
+
+    $existingItem = CartItem::where('id', $request->cart_item_id)
+        ->whereHas('cart', function ($q) {
+            $q->where('user_id', Auth::id());
+        })->first();
+
+    if (!$existingItem) {
+        return redirect()->back()->with('error', 'Cart item not found');
+    }
+
+    if ($request->action === 'add') {
+            $existingItem->quantity += 1;
         } else {
             if ($existingItem->quantity > 1) {
                 $existingItem->quantity -= 1;
@@ -92,6 +122,7 @@ class CartController extends Controller
                 return redirect()->back();
             }
         }
+
         $existingItem->save();
         return redirect()->back();
     }
@@ -222,11 +253,13 @@ class CartController extends Controller
                 $grandTotal += $total;
 
                 OrderItem::create([
-                    'order_id' => $order->id,
-                    'product_id' => $product->id,
-                    'quantity' => $item->quantity,
-                    'price' => $product->price,
-                    'custom_image' => $item->custom_image,
+                    'order_id'         => $order->id,
+                    'product_id'       => $product->id,
+                    'quantity'         => $item->quantity,
+                    'price'            => $product->price,
+                    'custom_image'     => $item->custom_image,
+                    'custom_images'    => $item->custom_images,
+                    'selected_options' => $item->selected_options,
                 ]);
 
                 $product->stock -= $item->quantity;
@@ -332,100 +365,87 @@ class CartController extends Controller
 
         return view('order_view', compact('order'));
     }
-   public function customize($id)
-    {
-        $product = Products::findOrFail($id);
+    public function customize($id)
+{
+    $product = Products::with(['images', 'options'])->findOrFail($id);
 
-        return view('customize', compact('product'));
+    $customizableImages = $product->images->where('is_customizable', true)->values();
+
+    if ($customizableImages->isEmpty() && $product->image) {
+        $customizableImages = collect([
+            (object) [
+                'id'    => 0,
+                'image' => $product->image,
+            ],
+        ]);
     }
 
+    if ($customizableImages->isEmpty()) {
+        return redirect('/product/' . $id)
+            ->with('error', 'This product has no customizable images.');
+    }
 
-    public function saveCustomization(Request $request, $id)
-    {
-        $user = Auth::user();
+    return view('customize', [
+        'product'            => $product,
+        'customizableImages' => $customizableImages,
+    ]);
+}
 
-        if (!$user) {
-            return redirect('/login');
-        }
+public function saveCustomization(Request $request, $id)
+{
+    $user = Auth::user();
 
-        $product = Products::findOrFail($id);
+    if (!$user) {
+        return redirect('/login');
+    }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Validate Customized Image
-        |--------------------------------------------------------------------------
-        */
+    $product = Products::with('options')->findOrFail($id);
 
+    $request->validate([
+        'custom_images'   => 'required|array|min:1',
+        'custom_images.*' => 'required|string',
+    ]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Require every dynamic option to be selected, same as the product page
+    |--------------------------------------------------------------------------
+    */
+
+    if ($product->options->count()) {
         $request->validate([
-            'custom_image' => 'required|string',
+            'options' => 'required|array',
         ]);
 
+        foreach ($product->options as $option) {
+            $request->validate([
+                'options.' . $option->name => 'required|string',
+            ]);
+        }
+    }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Get / Create Cart
-        |--------------------------------------------------------------------------
-        */
+    $cart = Cart::firstOrCreate(['user_id' => $user->id]);
 
-        $cart = Cart::firstOrCreate([
-            'user_id' => $user->id,
-        ]);
+    $folder = public_path('uploads/customizations');
 
+    if (!file_exists($folder)) {
+        mkdir($folder, 0755, true);
+    }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Get Base64 Image
-        |--------------------------------------------------------------------------
-        */
+    $savedFiles = [];
 
-        $imageData = $request->custom_image;
-
-        /*
-        | Example:
-        | data:image/png;base64,iVBORw0KGgo...
-        */
+    foreach ($request->custom_images as $imageId => $imageData) {
 
         if (!preg_match('/^data:image\/(\w+);base64,/', $imageData, $matches)) {
-
-            return redirect()->back()
-                ->with('error', 'Invalid customized image.');
-
+            continue;
         }
 
+        $data = substr($imageData, strpos($imageData, ',') + 1);
+        $data = base64_decode($data);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Remove Base64 Header
-        |--------------------------------------------------------------------------
-        */
-
-        $imageData = substr(
-            $imageData,
-            strpos($imageData, ',') + 1
-        );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Decode Image
-        |--------------------------------------------------------------------------
-        */
-
-        $imageData = base64_decode($imageData);
-
-        if ($imageData === false) {
-
-            return redirect()->back()
-                ->with('error', 'Unable to process customized image.');
-
+        if ($data === false) {
+            continue;
         }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Get Image Extension
-        |--------------------------------------------------------------------------
-        */
 
         $extension = strtolower($matches[1]);
 
@@ -433,63 +453,43 @@ class CartController extends Controller
             $extension = 'jpg';
         }
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | Create Upload Folder
-        |--------------------------------------------------------------------------
-        */
-
-        $folder = public_path('uploads/customizations');
-
-        if (!file_exists($folder)) {
-            mkdir($folder, 0755, true);
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Generate Filename
-        |--------------------------------------------------------------------------
-        */
-
         $filename = time() . '_' . uniqid() . '.' . $extension;
 
+        file_put_contents($folder . '/' . $filename, $data);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Save Customized Image
-        |--------------------------------------------------------------------------
-        */
-
-        file_put_contents(
-            $folder . '/' . $filename,
-            $imageData
-        );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Add Product To Cart
-        |--------------------------------------------------------------------------
-        */
-
-        CartItem::create([
-            'cart_id' => $cart->id,
-            'product_id' => $product->id,
-            'quantity' => 1,
-            'custom_image' => $filename,
-        ]);
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Redirect To Cart
-        |--------------------------------------------------------------------------
-        */
-
-        return redirect('/cart')
-            ->with('success', 'Customized product added to cart!');
+        $savedFiles[] = $filename;
     }
+
+    if (empty($savedFiles)) {
+        return redirect()->back()
+            ->with('error', 'Please customize at least one image before saving.');
+    }
+
+    $selectedOptions = $request->filled('options') ? $request->options : null;
+
+    /*
+    |--------------------------------------------------------------------------
+    | ONE cart row holding every customized image (front, back, etc.)
+    |--------------------------------------------------------------------------
+    */
+
+    CartItem::create([
+        'cart_id'          => $cart->id,
+        'product_id'       => $product->id,
+        'quantity'         => 1,
+        'custom_image'     => $savedFiles[0],
+        'custom_images'    => $savedFiles,
+        'selected_options' => $selectedOptions,
+    ]);
+
+    try {
+        Mail::to($user->email)->send(new CustomizationMail($product, $savedFiles));
+    } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('Customization mail failed: ' . $e->getMessage());
+    }
+
+    return redirect('/cart')
+        ->with('success', count($savedFiles) . ' customized image(s) added to cart!');
+}
 }
 

@@ -5,6 +5,7 @@ use App\Http\Controllers\Products;
 use App\Http\Controllers\UserControl;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Mail;
+use App\Http\Controllers\CategoryController;
 
 
 Route::get('/', function () {
@@ -19,17 +20,33 @@ Route::view('/signup','signup');
 Route::post('/signup_user',[UserControl::class,'signup_user']);
 
 Route::middleware(['auth','admin'])->group(function () {
-    Route::view('/product_form','productform');
+    Route::get('/product_form', [Products::class, 'create']);
     Route::get('/product_list',[Products::class,'show']);
     Route::post('/add_product',[Products::class,'store']);
     Route::get('/edit_product/{id}',[Products::class,'edit']);
     Route::put('/update_product',[Products::class,'update']);
     Route::get('/delete_product/{id}',[Products::class,'delete']);
+
+    // Category management
+    Route::get('/categories', [CategoryController::class, 'index']);
+    Route::post('/categories', [CategoryController::class, 'store']);
+    Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);
+
+    Route::post('/subcategories', [CategoryController::class, 'storeSubcategory']);
+    Route::delete('/subcategories/{id}', [CategoryController::class, 'destroySubcategory']);
 });
+
+Route::get('/product/{id}', [Products::class, 'productDetails'])->name('product.details');
+Route::get('/customize/{id}', [CartController::class, 'customize'])->name('product.customize');
+Route::post('/customize/{id}/save', [CartController::class, 'saveCustomization'])->name('product.customize.save');
 
 Route::middleware('auth')->group(function () {
     Route::get('/products',[Products::class,'products_card']);
 });
+
+
+// AJAX: fetch subcategories for a given category (used by the product form dropdown)
+Route::get('/get-subcategories/{category_id}', [CategoryController::class, 'getSubcategories']);
 
 Route::middleware('auth')->group(function () {
     Route::post('/add_cart',[CartController::class,'add_cart']); // set cart of user product add

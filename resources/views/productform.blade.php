@@ -46,6 +46,26 @@
                     <label class="form-label">Price</label>
                     <input type="number" name="price" value="{{ $products->price ?? '' }}" class="form-control" required>
                 </div>
+                <!-- Category / Subcategory -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Category</label>
+                        <select name="category_id" id="categorySelect" class="form-select" required>
+                            <option value="">Select Category</option>
+                            @foreach($categories as $cat)
+                                <option value="{{ $cat->id }}" {{ (isset($products) && $products->category_id == $cat->id) ? 'selected' : '' }}>
+                                    {{ $cat->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Subcategory</label>
+                        <select name="subcategory_id" id="subcategorySelect" class="form-select" required>
+                            <option value="">Select Category First</option>
+                        </select>
+                    </div>
+                </div>
 
                 <!-- Description -->
                 <div class="mb-3">
@@ -134,8 +154,6 @@
         </div>
     </div>
 </div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 
@@ -198,5 +216,55 @@ document.addEventListener('DOMContentLoaded', function () {
 
 });
 </script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    const categorySelect    = document.getElementById('categorySelect');
+    const subcategorySelect = document.getElementById('subcategorySelect');
+
+    // When editing, we already know which subcategory is selected
+    const currentSubcategoryId = "{{ $products->subcategory_id ?? '' }}";
+
+    function loadSubcategories(categoryId, selectedId = '') {
+        subcategorySelect.innerHTML = '<option value="">Loading...</option>';
+
+        if (!categoryId) {
+            subcategorySelect.innerHTML = '<option value="">Select Category First</option>';
+            return;
+        }
+
+        fetch(`/get-subcategories/${categoryId}`)
+            .then(res => res.json())
+            .then(data => {
+                subcategorySelect.innerHTML = '<option value="">Select Subcategory</option>';
+
+                data.forEach(sub => {
+                    const opt = document.createElement('option');
+                    opt.value = sub.id;
+                    opt.textContent = sub.name;
+                    if (String(sub.id) === String(selectedId)) {
+                        opt.selected = true;
+                    }
+                    subcategorySelect.appendChild(opt);
+                });
+            })
+            .catch(() => {
+                subcategorySelect.innerHTML = '<option value="">Failed to load</option>';
+            });
+    }
+
+    categorySelect.addEventListener('change', function () {
+        loadSubcategories(this.value);
+    });
+
+    // On page load: if editing a product, auto-load its subcategories
+    if (categorySelect.value) {
+        loadSubcategories(categorySelect.value, currentSubcategoryId);
+    }
+
+});
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.min.js"></script>
+
 </body>
 </html>

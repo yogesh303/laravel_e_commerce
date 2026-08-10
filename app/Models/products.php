@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class products extends Model
 {
-    //
     use SoftDeletes;
     protected $table = 'products';
 
@@ -16,12 +15,16 @@ class products extends Model
         'price',
         'description',
         'stock',
-        'image'
+        'image',
+        'category_id',
+        'subcategory_id',
     ];
+
     public function cartItems()
     {
         return $this->hasMany(CartItem::class);
     }
+
     public function images()
     {
         return $this->hasMany(ProductImage::class, 'product_id');
@@ -30,5 +33,15 @@ class products extends Model
     public function options()
     {
         return $this->hasMany(ProductOption::class, 'product_id');
+    }
+
+    public function category()
+    {
+        return $this->belongsTo(Category::class);
+    }
+
+    public function subcategory()
+    {
+        return $this->belongsTo(Subcategory::class);
     }
 }

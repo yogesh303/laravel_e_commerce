@@ -23,11 +23,13 @@ class Products extends Controller
             }
 
             $product = ModelsProducts::create([
-                'name'        => $request->name,
-                'price'       => $request->price,
-                'description' => $request->description,
-                'stock'       => $request->stock,
-                'image'       => $imageName,
+                'name'            => $request->name,
+                'price'           => $request->price,
+                'description'     => $request->description,
+                'stock'           => $request->stock,
+                'image'           => $imageName,
+                'category_id'     => $request->category_id,
+                'subcategory_id'  => $request->subcategory_id,
             ]);
 
             $this->saveGalleryImages($request, $product);
@@ -51,10 +53,22 @@ class Products extends Controller
 
     public function edit(string $id)
     {
-        $products = ModelsProducts::with(['images', 'options'])->find($id);
-        return view('productform', ['products' => $products]);
+        $products   = ModelsProducts::with(['images', 'options'])->find($id);
+        $categories = \App\Models\Category::with('subcategories')->get();
+
+        return view('productform', ['products' => $products, 'categories' => $categories]);
+    }
+    public function create()
+    {
+        $categories = \App\Models\Category::with('subcategories')->get();
+        return view('productform', ['categories' => $categories]);
     }
 
+    public function productDetails($id)
+    {
+        $product = ModelsProducts::with(['images', 'options'])->findOrFail($id);
+        return view('productdetails', ['product' => $product]);
+    }
     public function update(Request $request)
     {
         DB::beginTransaction();

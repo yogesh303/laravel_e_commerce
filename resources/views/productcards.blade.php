@@ -39,20 +39,20 @@
 
                     {{-- Buttons --}}
                     <div class="mt-auto">
-                        <a href="{{ route('product.customize', $row->id) }}"
+                        <a href="{{ url('/product/' . $row->id) }}"
                         class="btn btn-warning w-100">
-                            🎨 Customize Product
+                            View Product
                         </a>
 
                         {{-- Add to Cart --}}
-                        <form action="{{ url('add_cart') }}" method="POST">
+                        <!-- <form action="{{ url('add_cart') }}" method="POST">
                             @csrf
                             <input type="hidden" name="product_id" value="{{ $row->id }}">
                             <input type="hidden" name="quantity" value="1">
                             <button class="btn btn-primary w-100 mb-2">
                                 Add to Cart
                             </button>
-                        </form>
+                        </form> -->
 
                     </div>
 
