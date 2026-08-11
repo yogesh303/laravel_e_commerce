@@ -71,6 +71,10 @@
                 <div class="d-grid">
                     <button class="btn btn-custom">Login</button>
                 </div>
+                <div class="text-center mt-2">
+                    Not have account?
+                    <a href="{{ url('signup') }}" class="link">Sign up</a>
+                </div>
 
             </form>
 

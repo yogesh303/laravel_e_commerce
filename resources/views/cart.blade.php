@@ -121,8 +121,8 @@
 
     @if(count($carts) > 0)
         <div class="text-end mt-3">
-            <a href="{{ url('checkout') }}" class="btn btn-success">
-                Pay with Stripe
+            <a href="{{ route('shipping.form') }}" class="btn btn-success">
+                Proceed to Checkout
             </a>
         </div>
     @endif

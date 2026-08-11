@@ -257,6 +257,81 @@
 
     </div>
 
+    {{-- Shipping Address --}}
+    <div class="card shadow-sm mb-4">
+
+        <div class="card-header bg-dark text-white">
+
+            <h5 class="mb-0">
+                Shipping Address
+            </h5>
+
+        </div>
+
+        <div class="card-body">
+
+            @if($order->shipping_name)
+
+                <div class="row">
+
+                    <div class="col-md-6">
+
+                        <p class="mb-1">
+                            <strong>Name:</strong>
+                            {{ $order->shipping_name }}
+                        </p>
+
+                        <p class="mb-1">
+                            <strong>Phone:</strong>
+                            {{ $order->shipping_phone }}
+                        </p>
+
+                        <p class="mb-1">
+                            <strong>Address:</strong>
+                            {{ $order->shipping_address_line1 }}
+                            @if($order->shipping_address_line2)
+                                , {{ $order->shipping_address_line2 }}
+                            @endif
+                        </p>
+
+                    </div>
+
+                    <div class="col-md-6">
+
+                        <p class="mb-1">
+                            <strong>City:</strong>
+                            {{ $order->shipping_city }}
+                        </p>
+
+                        <p class="mb-1">
+                            <strong>State:</strong>
+                            {{ $order->shipping_state }}
+                        </p>
+
+                        <p class="mb-1">
+                            <strong>Pincode:</strong>
+                            {{ $order->shipping_pincode }}
+                        </p>
+
+                        <p class="mb-1">
+                            <strong>Country:</strong>
+                            {{ $order->shipping_country }}
+                        </p>
+
+                    </div>
+
+                </div>
+
+            @else
+
+                <p class="text-muted mb-0">No shipping address on file for this order.</p>
+
+            @endif
+
+        </div>
+
+    </div>
+
 
     {{-- Grand Total --}}
     <div class="card shadow-sm mt-4">

@@ -19,7 +19,12 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'role', // ✅ add this
+        'role',
+        'account_type',
+        'company_name',
+        'industry',
+        'mobile_number',
+        'mobile_verified_at',
     ];
     function usermanydata(){
         return $this->hasMany(Order::class,'user_id');

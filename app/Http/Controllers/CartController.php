@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Mail;
 use Stripe\Stripe;
 use Stripe\Checkout\Session;
 use App\Mail\CustomizationMail;
+use Razorpay\Api\Api;
 
 class CartController extends Controller
 {
@@ -89,204 +90,66 @@ class CartController extends Controller
 
         return view('cart', ['carts' => $cart_items]); // ✅ even if empty
     }
-    public function add_quantity(Request $request){
-    $user = Auth::user();
+    public function add_quantity(Request $request)
+    {
+        $user = Auth::user();
 
-    if (!$user) {
-        return redirect()->back()->with('error', 'Please login first');
-    }
+        if (!$user) {
+            return redirect()->back()->with('error', 'Please login first');
+        }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Target the exact cart row (fixes wrong item being updated when
-    | a product has multiple rows — e.g. front/back customizations)
-    |--------------------------------------------------------------------------
-    */
+        $existingItem = CartItem::where('id', $request->cart_item_id)
+            ->whereHas('cart', function ($q) {
+                $q->where('user_id', Auth::id());
+            })->first();
 
-    $existingItem = CartItem::where('id', $request->cart_item_id)
-        ->whereHas('cart', function ($q) {
-            $q->where('user_id', Auth::id());
-        })->first();
+        if (!$existingItem) {
+            return redirect()->back()->with('error', 'Cart item not found');
+        }
 
-    if (!$existingItem) {
-        return redirect()->back()->with('error', 'Cart item not found');
-    }
-
-    if ($request->action === 'add') {
+        if ($request->action === 'add') {
             $existingItem->quantity += 1;
+            $existingItem->save();
         } else {
             if ($existingItem->quantity > 1) {
                 $existingItem->quantity -= 1;
+                $existingItem->save();
             } else {
+                $this->deleteCustomImages($existingItem);
                 $existingItem->delete();
-                return redirect()->back();
             }
         }
 
-        $existingItem->save();
         return redirect()->back();
     }
-    public function checkout()
+
+    /**
+     * Delete any uploaded customization image files tied to a cart item
+     * before the row itself is removed.
+     */
+    private function deleteCustomImages(CartItem $item)
     {
-        $user = Auth::user();
+        $folder = public_path('uploads/customizations');
 
-        if (!$user) {
-            return redirect('/login')->with('error', 'Please login');
-        }
-
-        $cart = Cart::where('user_id', $user->id)->first();
-
-        if (!$cart) {
-            return redirect('/cart')->with('error', 'Cart not found');
-        }
-
-        $items = CartItem::where('cart_id', $cart->id)->get();
-
-        if ($items->isEmpty()) {
-            return redirect('/cart')->with('error', 'Cart is empty');
-        }
-
-        Stripe::setApiKey(env('STRIPE_SECRET'));
-
-        $lineItems = [];
-
-        foreach ($items as $item) {
-
-            $product = Products::find($item->product_id);
-
-            if (!$product) {
-                continue;
-            }
-
-            $lineItems[] = [
-                'price_data' => [
-                    'currency' => 'inr',
-
-                    'product_data' => [
-                        'name' => $product->name,
-                    ],
-
-                    'unit_amount' => (int) ($product->price * 100),
-                ],
-
-                'quantity' => $item->quantity,
-            ];
-        }
-
-        if (empty($lineItems)) {
-            return redirect('/cart')
-                ->with('error', 'No valid products found in cart');
-        }
-
-        $session = Session::create([
-
-            'payment_method_types' => ['card'],
-
-            'line_items' => $lineItems,
-
-            'mode' => 'payment',
-
-            'customer_email' => $user->email,
-
-            'success_url' => url('/payment-success') . '?session_id={CHECKOUT_SESSION_ID}',
-
-            'cancel_url' => url('/cart'),
-        ]);
-
-        return redirect($session->url);
-    }
-    public function order($session = null)
-    {
-        $user = Auth::user();
-
-        if (!$user) {
-            return redirect()->back()->with('error', 'Please login');
-        }
-
-        $cart = Cart::where('user_id', $user->id)->first();
-
-        if (!$cart) {
-            return redirect()->back()->with('error', 'No cart found');
-        }
-
-        $items = CartItem::where('cart_id', $cart->id)->get();
-
-        if ($items->isEmpty()) {
-            return redirect()->back()->with('error', 'Cart is empty');
-        }
-
-        DB::beginTransaction();
-
-        try {
-
-            foreach ($items as $item) {
-
-                $product = Products::find($item->product_id);
-
-                if (!$product) {
-                    DB::rollBack();
-                    return redirect()->back()->with('error', 'Product not found');
-                }
-
-                if ($product->stock < $item->quantity) {
-                    DB::rollBack();
-                    return redirect()->back()->with(
-                        'error',
-                        $product->name . ' is out of stock (Available: ' . $product->stock . ')'
-                    );
+        // Multi-image rows (front, back, etc.)
+        if (!empty($item->custom_images) && is_array($item->custom_images)) {
+            foreach ($item->custom_images as $img) {
+                $path = $folder . '/' . $img;
+                if (file_exists($path)) {
+                    unlink($path);
                 }
             }
+        }
 
-            $order = Order::create([
-                'user_id' => $user->id,
-                'status' => 'placed',
-                'total_price' => 0
-            ]);
-
-            $grandTotal = 0;
-
-            foreach ($items as $item) {
-
-                $product = Products::find($item->product_id);
-
-                $total = $product->price * $item->quantity;
-                $grandTotal += $total;
-
-                OrderItem::create([
-                    'order_id'         => $order->id,
-                    'product_id'       => $product->id,
-                    'quantity'         => $item->quantity,
-                    'price'            => $product->price,
-                    'custom_image'     => $item->custom_image,
-                    'custom_images'    => $item->custom_images,
-                    'selected_options' => $item->selected_options,
-                ]);
-
-                $product->stock -= $item->quantity;
-                $product->save();
+        // Legacy single-image rows
+        if (!empty($item->custom_image)) {
+            $path = $folder . '/' . $item->custom_image;
+            if (file_exists($path)) {
+                unlink($path);
             }
-
-            $order->total_price = $grandTotal;
-            $order->save();
-
-            CartItem::where('cart_id', $cart->id)->delete();
-            Cart::where('user_id', $user->id)->delete();
-
-            DB::commit();
-
-            $to = "yogeshkanzariya5@mail.com";
-
-            Mail::to($to)->send(
-                new TestMail($order)
-            );
-
-            return redirect('orders')->with('success', 'Order placed successfully');
-
-            } catch (\Exception $e) {
-                DB::rollBack();
-                dd($e->getMessage()); // 👈 ADD THIS
-            }
+        }
     }
+  
     public function payment_success(Request $request)
     {
         $user = Auth::user();
@@ -490,6 +353,315 @@ public function saveCustomization(Request $request, $id)
 
     return redirect('/cart')
         ->with('success', count($savedFiles) . ' customized image(s) added to cart!');
+}
+public function shipping_form()
+{
+    $user = Auth::user();
+
+    if (!$user) {
+        return redirect('/login');
+    }
+
+    $cart = Cart::where('user_id', $user->id)->first();
+
+    if (!$cart || CartItem::where('cart_id', $cart->id)->count() === 0) {
+        return redirect('/cart')->with('error', 'Cart is empty');
+    }
+
+    // Prefill with previously entered shipping info, if any, in this session
+    $saved = session('shipping_address');
+
+    return view('shipping', ['saved' => $saved]);
+}
+
+public function save_shipping(Request $request)
+{
+    $user = Auth::user();
+
+    if (!$user) {
+        return redirect('/login');
+    }
+
+    $validated = $request->validate([
+        'shipping_name' => 'required|string|max:255',
+        'shipping_phone' => 'required|string|max:20',
+        'shipping_address_line1' => 'required|string|max:255',
+        'shipping_address_line2' => 'nullable|string|max:255',
+        'shipping_city' => 'required|string|max:100',
+        'shipping_state' => 'required|string|max:100',
+        'shipping_pincode' => 'required|string|max:10',
+        'shipping_country' => 'required|string|max:100',
+    ]);
+
+    // Keep the address in session until payment completes, then it's copied onto the Order
+    session(['shipping_address' => $validated]);
+
+    return redirect()->route('payment.choice');
+}
+
+public function checkout()
+{
+    $user = Auth::user();
+
+    if (!$user) {
+        return redirect('/login')->with('error', 'Please login');
+    }
+
+    // Shipping address must be filled first
+    if (!session()->has('shipping_address')) {
+        return redirect()->route('shipping.form');
+    }
+
+    $cart = Cart::where('user_id', $user->id)->first();
+
+    if (!$cart) {
+        return redirect('/cart')->with('error', 'Cart not found');
+    }
+
+    $items = CartItem::where('cart_id', $cart->id)->get();
+
+    if ($items->isEmpty()) {
+        return redirect('/cart')->with('error', 'Cart is empty');
+    }
+
+    Stripe::setApiKey(env('STRIPE_SECRET'));
+
+    $lineItems = [];
+
+    foreach ($items as $item) {
+
+        $product = Products::find($item->product_id);
+
+        if (!$product) {
+            continue;
+        }
+
+        $lineItems[] = [
+            'price_data' => [
+                'currency' => 'inr',
+                'product_data' => [
+                    'name' => $product->name,
+                ],
+                'unit_amount' => (int) ($product->price * 100),
+            ],
+            'quantity' => $item->quantity,
+        ];
+    }
+
+    if (empty($lineItems)) {
+        return redirect('/cart')
+            ->with('error', 'No valid products found in cart');
+    }
+
+    $session = Session::create([
+        'payment_method_types' => ['card'],
+        'line_items' => $lineItems,
+        'mode' => 'payment',
+        'customer_email' => $user->email,
+        'success_url' => url('/payment-success') . '?session_id={CHECKOUT_SESSION_ID}',
+        'cancel_url' => url('/cart'),
+    ]);
+
+    return redirect($session->url);
+}
+
+public function order($session = null)
+{
+    $user = Auth::user();
+
+    if (!$user) {
+        return redirect()->back()->with('error', 'Please login');
+    }
+
+    $cart = Cart::where('user_id', $user->id)->first();
+
+    if (!$cart) {
+        return redirect()->back()->with('error', 'No cart found');
+    }
+
+    $items = CartItem::where('cart_id', $cart->id)->get();
+
+    if ($items->isEmpty()) {
+        return redirect()->back()->with('error', 'Cart is empty');
+    }
+
+    $shipping = session('shipping_address');
+
+    if (!$shipping) {
+        return redirect()->route('shipping.form')->with('error', 'Please add shipping details');
+    }
+
+    DB::beginTransaction();
+
+    try {
+
+        foreach ($items as $item) {
+
+            $product = Products::find($item->product_id);
+
+            if (!$product) {
+                DB::rollBack();
+                return redirect()->back()->with('error', 'Product not found');
+            }
+
+            if ($product->stock < $item->quantity) {
+                DB::rollBack();
+                return redirect()->back()->with(
+                    'error',
+                    $product->name . ' is out of stock (Available: ' . $product->stock . ')'
+                );
+            }
+        }
+
+        $order = Order::create([
+            'user_id' => $user->id,
+            'status' => 'placed',
+            'total_price' => 0,
+            'shipping_name' => $shipping['shipping_name'],
+            'shipping_phone' => $shipping['shipping_phone'],
+            'shipping_address_line1' => $shipping['shipping_address_line1'],
+            'shipping_address_line2' => $shipping['shipping_address_line2'] ?? null,
+            'shipping_city' => $shipping['shipping_city'],
+            'shipping_state' => $shipping['shipping_state'],
+            'shipping_pincode' => $shipping['shipping_pincode'],
+            'shipping_country' => $shipping['shipping_country'],
+        ]);
+
+        $grandTotal = 0;
+
+        foreach ($items as $item) {
+
+            $product = Products::find($item->product_id);
+
+            $total = $product->price * $item->quantity;
+            $grandTotal += $total;
+
+            OrderItem::create([
+                'order_id'         => $order->id,
+                'product_id'       => $product->id,
+                'quantity'         => $item->quantity,
+                'price'            => $product->price,
+                'custom_image'     => $item->custom_image,
+                'custom_images'    => $item->custom_images,
+                'selected_options' => $item->selected_options,
+            ]);
+
+            $product->stock -= $item->quantity;
+            $product->save();
+        }
+
+        $order->total_price = $grandTotal;
+        $order->save();
+
+        CartItem::where('cart_id', $cart->id)->delete();
+        Cart::where('user_id', $user->id)->delete();
+
+        DB::commit();
+
+        session()->forget('shipping_address');
+
+        $to = "yogeshkanzariya5@mail.com";
+
+        Mail::to($to)->send(
+            new TestMail($order)
+        );
+
+        return redirect('orders')->with('success', 'Order placed successfully');
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        dd($e->getMessage());
+    }
+}
+public function checkout_razorpay()
+{
+    $user = Auth::user();
+
+    if (!$user) {
+        return redirect('/login')->with('error', 'Please login');
+    }
+
+    if (!session()->has('shipping_address')) {
+        return redirect()->route('shipping.form');
+    }
+
+    $cart = Cart::where('user_id', $user->id)->first();
+
+    if (!$cart) {
+        return redirect('/cart')->with('error', 'Cart not found');
+    }
+
+    $items = CartItem::where('cart_id', $cart->id)->get();
+
+    if ($items->isEmpty()) {
+        return redirect('/cart')->with('error', 'Cart is empty');
+    }
+
+    $grandTotal = 0;
+
+    foreach ($items as $item) {
+        $product = Products::find($item->product_id);
+        if ($product) {
+            $grandTotal += $product->price * $item->quantity;
+        }
+    }
+
+    if ($grandTotal <= 0) {
+        return redirect('/cart')->with('error', 'No valid products found in cart');
+    }
+
+    $api = new Api(env('RAZORPAY_KEY'), env('RAZORPAY_SECRET'));
+
+    // Razorpay amount is in paise (smallest currency unit)
+    $razorpayOrder = $api->order->create([
+        'receipt'         => 'order_rcpt_' . time(),
+        'amount'          => (int) round($grandTotal * 100),
+        'currency'        => 'INR',
+        'payment_capture' => 1,
+    ]);
+
+    return view('razorpay_checkout', [
+        'razorpay_order_id' => $razorpayOrder['id'],
+        'amount'            => $grandTotal,
+        'key'               => env('RAZORPAY_KEY'),
+        'user'              => $user,
+    ]);
+}
+
+public function razorpay_verify(Request $request)
+{
+    $user = Auth::user();
+
+    if (!$user) {
+        return redirect('/login');
+    }
+
+    $api = new Api(env('RAZORPAY_KEY'), env('RAZORPAY_SECRET'));
+
+    $attributes = [
+        'razorpay_order_id'   => $request->razorpay_order_id,
+        'razorpay_payment_id' => $request->razorpay_payment_id,
+        'razorpay_signature'  => $request->razorpay_signature,
+    ];
+
+    try {
+        // Throws an exception if the signature doesn't match
+        $api->utility->verifyPaymentSignature($attributes);
+
+    } catch (\Exception $e) {
+        return redirect('/cart')->with('error', 'Payment verification failed.');
+    }
+
+    // Signature verified — payment is genuine, place the order
+    return $this->order();
+}
+public function payment_choice()
+{
+    if (!session()->has('shipping_address')) {
+        return redirect()->route('shipping.form');
+    }
+
+    return view('payment_choice');
 }
 }
 

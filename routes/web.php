@@ -17,7 +17,8 @@ Route::get('/login', function () {
 })->name('login');
 Route::post('/login_user',[UserControl::class,'login_user']);
 Route::view('/signup','signup');
-Route::post('/signup_user',[UserControl::class,'signup_user']);
+Route::post('/send-otp', [UserControl::class, 'send_otp'])->name('send.otp');
+Route::post('/signup_user', [UserControl::class, 'signup_user'])->name('signup.user');
 
 Route::middleware(['auth','admin'])->group(function () {
     Route::get('/product_form', [Products::class, 'create']);
@@ -57,6 +58,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/payment-success', [CartController::class, 'payment_success']);
     Route::get('/checkout', [CartController::class, 'checkout']);
     Route::get('/dashboard', [UserControl::class, 'dashboard']);
+    Route::get('/checkout/choose', [CartController::class, 'payment_choice'])->name('payment.choice');
 });
 Route::post('/logout', [UserControl::class, 'logout'])->name('logout');
 
@@ -68,6 +70,12 @@ Route::post('/product/{id}/customize', [CartController::class, 'saveCustomizatio
 
 Route::get('/order/{id}', [CartController::class, 'order_view'])
     ->name('order.view');
+
+Route::get('/checkout/address', [CartController::class, 'shipping_form'])->name('shipping.form');
+Route::post('/checkout/address', [CartController::class, 'save_shipping'])->name('shipping.save');
+
+Route::get('/checkout/razorpay', [CartController::class, 'checkout_razorpay'])->name('checkout.razorpay');
+Route::post('/razorpay/verify', [CartController::class, 'razorpay_verify'])->name('razorpay.verify');
 
 Route::get('/test-mail', function () {
 
