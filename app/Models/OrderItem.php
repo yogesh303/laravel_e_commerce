@@ -14,6 +14,9 @@ class OrderItem extends Model
         'custom_image',
         'custom_images',
         'selected_options',
+        'product_quantity_id',   // ← was missing
+        'tier_qty',               // ← was missing
+        'tier_price',  
     ];
 
     protected $casts = [
@@ -29,5 +32,9 @@ class OrderItem extends Model
     public function order()
     {
         return $this->belongsTo(Order::class);
+    }
+    public function tier()
+    {
+        return $this->belongsTo(ProductQuantity::class, 'product_quantity_id');
     }
 }

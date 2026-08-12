@@ -68,6 +68,10 @@
                         <input type="text" name="company_name" class="form-control" value="{{ old('company_name') }}" placeholder="Enter company name">
                     </div>
                     <div class="mb-3">
+                        <label>GST Number</label>
+                        <input type="text" name="company_name" class="form-control" value="{{ old('gst_no') }}" placeholder="Enter company name">
+                    </div>
+                    <div class="mb-3">
                         <label>Industry</label>
                         <select name="industry" class="form-control">
                             <option value="">Select Industry</option>
@@ -169,6 +173,7 @@ function setAccountType(type) {
 
     // required only when business
     document.querySelector('[name="company_name"]').required = (type === 'business');
+    document.querySelector('[name="gst_no"]').required = (type === 'business');
     document.querySelector('[name="industry"]').required = (type === 'business');
 }
 

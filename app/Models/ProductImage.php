@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class ProductImage extends Model
 {
-    protected $fillable = ['product_id', 'image', 'is_customizable'];
+    protected $fillable = ['product_id', 'image', 'is_customizable', 'variant_value'];
 
     protected $casts = [
         'is_customizable' => 'boolean',

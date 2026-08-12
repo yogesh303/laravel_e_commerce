@@ -73,10 +73,28 @@
                     <textarea name="description" class="form-control" rows="3">{{ $products->description ?? '' }}</textarea>
                 </div>
 
-                <!-- Stock -->
-                <div class="mb-3">
-                    <label class="form-label">Stock</label>
-                    <input type="number" name="stock" value="{{ $products->stock ?? '' }}" class="form-control" required>
+                <!-- Quantity Tiers -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Quantity & Price</label>
+                    <div id="quantitiesWrapper">
+                        @if(isset($products) && $products->quantities->count())
+                            @foreach($products->quantities as $i => $qty)
+                                <div class="row g-2 mb-2 quantity-row">
+                                    <div class="col-md-5">
+                                        <input type="number" name="quantities[{{ $i }}][qty]" value="{{ $qty->quantity }}" class="form-control qty-input" placeholder="Quantity e.g. 10">
+                                    </div>
+                                    <div class="col-md-5">
+                                        <input type="number" step="0.01" name="quantities[{{ $i }}][price]" value="{{ $qty->price }}" class="form-control price-input" placeholder="Price for this quantity">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button type="button" class="btn btn-outline-danger w-100 remove-quantity">Remove</button>
+                                    </div>
+                                </div>
+                            @endforeach
+                        @endif
+                    </div>
+                    <button type="button" id="addQuantity" class="btn btn-sm btn-outline-primary mt-2">+ Add Quantity</button>
+                    <div class="form-text">e.g. Quantity 10 → ₹450, Quantity 20 → ₹850, Quantity 25 → ₹1000. Price auto-fills based on unit price × quantity, but you can edit it.</div>
                 </div>
 
                 <!-- Main Image -->
@@ -213,6 +231,50 @@ document.addEventListener('DOMContentLoaded', function () {
             e.target.closest('.image-row').remove();
         }
     });
+
+    /* ---------------- Dynamic Quantities ---------------- */
+    let quantityIndex = {{ isset($products) ? $products->quantities->count() : 0 }};
+    const quantitiesWrapper = document.getElementById('quantitiesWrapper');
+    const basePriceInput = document.querySelector('input[name="price"]');
+
+    function bindQtyAutoCalc(row) {
+        const qtyInput = row.querySelector('.qty-input');
+        const priceInput = row.querySelector('.price-input');
+        qtyInput.addEventListener('input', function () {
+            const basePrice = parseFloat(basePriceInput.value) || 0;
+            const qty = parseInt(qtyInput.value) || 0;
+            if (qty > 0 && basePrice > 0) {
+                priceInput.value = (basePrice * qty).toFixed(2);
+            }
+        });
+    }
+
+    document.getElementById('addQuantity').addEventListener('click', function () {
+        const row = document.createElement('div');
+        row.className = 'row g-2 mb-2 quantity-row';
+        row.innerHTML = `
+            <div class="col-md-5">
+                <input type="number" name="quantities[${quantityIndex}][qty]" class="form-control qty-input" placeholder="Quantity e.g. 10">
+            </div>
+            <div class="col-md-5">
+                <input type="number" step="0.01" name="quantities[${quantityIndex}][price]" class="form-control price-input" placeholder="Price for this quantity">
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-outline-danger w-100 remove-quantity">Remove</button>
+            </div>`;
+        quantitiesWrapper.appendChild(row);
+        bindQtyAutoCalc(row);
+        quantityIndex++;
+    });
+
+    quantitiesWrapper.addEventListener('click', function (e) {
+        if (e.target.classList.contains('remove-quantity')) {
+            e.target.closest('.quantity-row').remove();
+        }
+    });
+
+    // bind auto-calc to any pre-existing rows (edit mode)
+    document.querySelectorAll('.quantity-row').forEach(bindQtyAutoCalc);
 
 });
 </script>

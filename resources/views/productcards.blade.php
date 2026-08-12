@@ -34,9 +34,6 @@
                     {{-- Description --}}
                     <p class="card-text">{{ $row->description }}</p>
 
-                    {{-- Stock --}}
-                    <p class="text-muted">Stock: {{ $row->stock }}</p>
-
                     {{-- Buttons --}}
                     <div class="mt-auto">
                         <a href="{{ url('/product/' . $row->id) }}"

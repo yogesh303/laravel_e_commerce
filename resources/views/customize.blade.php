@@ -76,7 +76,9 @@ body { background: #f5f6f8; }
         <div class="d-flex justify-content-between align-items-start mb-3">
             <div>
                 <h3 class="product-title mb-1">{{ $product->name }}</h3>
-                <div class="product-price text-success">₹ {{ number_format($product->price) }}</div>
+                <div class="product-price text-success">
+                    ₹ {{ number_format($product->quantities->first()->price ?? $product->price) }}
+                </div>
             </div>
             <a href="{{ url('/product/' . $product->id) }}" class="btn btn-outline-secondary btn-sm">← Back to Product</a>
         </div>
@@ -121,6 +123,22 @@ body { background: #f5f6f8; }
               action="{{ route('product.customize.save', $product->id) }}"
               id="customizeForm">
             @csrf
+
+            @if($product->quantities->count())
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Quantity</label>
+                        <select class="form-select" name="quantity_id" required>
+                            <option value="">Select Quantity</option>
+                            @foreach($product->quantities as $q)
+                                <option value="{{ $q->id }}" {{ old('quantity_id') == $q->id ? 'selected' : '' }}>
+                                    {{ $q->quantity }} pcs — ₹{{ number_format($q->price) }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+            @endif
 
             <!-- Product options: Size, Color, etc. — MUST be inside the form to submit -->
             @if($product->options->count())

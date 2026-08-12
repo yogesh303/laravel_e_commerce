@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\products as ModelsProducts;
 use App\Models\ProductImage;
 use App\Models\ProductOption;
+use App\Models\ProductQuantity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -26,7 +27,6 @@ class Products extends Controller
                 'name'            => $request->name,
                 'price'           => $request->price,
                 'description'     => $request->description,
-                'stock'           => $request->stock,
                 'image'           => $imageName,
                 'category_id'     => $request->category_id,
                 'subcategory_id'  => $request->subcategory_id,
@@ -34,6 +34,7 @@ class Products extends Controller
 
             $this->saveGalleryImages($request, $product);
             $this->saveOptions($request, $product);
+            $this->saveQuantities($request, $product);
 
             DB::commit();
 
@@ -45,6 +46,24 @@ class Products extends Controller
         }
     }
 
+    private function saveQuantities(Request $request, $product)
+    {
+        if (!$request->filled('quantities')) {
+            return;
+        }
+
+        foreach ($request->quantities as $row) {
+            if (empty($row['qty']) || $row['price'] === null || $row['price'] === '') {
+                continue;
+            }
+
+            ProductQuantity::create([
+                'product_id' => $product->id,
+                'quantity'   => $row['qty'],
+                'price'      => $row['price'],
+            ]);
+        }
+    }
     public function show()
     {
         $products = ModelsProducts::with(['images', 'options'])->get();
@@ -66,7 +85,7 @@ class Products extends Controller
 
     public function productDetails($id)
     {
-        $product = ModelsProducts::with(['images', 'options'])->findOrFail($id);
+        $product = ModelsProducts::with(['images', 'options','quantities'])->findOrFail($id);
         return view('productdetails', ['product' => $product]);
     }
     public function update(Request $request)
@@ -80,7 +99,6 @@ class Products extends Controller
             $product->name        = $request->name;
             $product->price       = $request->price;
             $product->description = $request->description;
-            $product->stock       = $request->stock;
 
             // Replace main image
             if ($request->hasFile('image')) {
@@ -123,6 +141,8 @@ class Products extends Controller
             // Replace dynamic options (simplest reliable approach: wipe + recreate)
             ProductOption::where('product_id', $product->id)->delete();
             $this->saveOptions($request, $product);
+            ProductQuantity::where('product_id', $product->id)->delete();
+            $this->saveQuantities($request, $product);
 
             DB::commit();
 

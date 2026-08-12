@@ -12,7 +12,8 @@ return new class extends Migration
             $table->enum('account_type', ['personal', 'business'])->default('personal')->after('role');
             $table->string('company_name')->nullable()->after('account_type');
             $table->string('industry')->nullable()->after('company_name');
-            $table->string('mobile_number', 20)->nullable()->unique()->after('industry');
+            $table->string('gst_no')->nullable()->after('industry');
+            $table->string('mobile_number', 20)->nullable()->unique()->after('gst_no');
             $table->timestamp('mobile_verified_at')->nullable()->after('mobile_number');
         });
     }

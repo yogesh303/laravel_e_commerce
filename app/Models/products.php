@@ -14,7 +14,6 @@ class products extends Model
         'name',
         'price',
         'description',
-        'stock',
         'image',
         'category_id',
         'subcategory_id',
@@ -43,5 +42,9 @@ class products extends Model
     public function subcategory()
     {
         return $this->belongsTo(Subcategory::class);
+    }
+    public function quantities()
+    {
+        return $this->hasMany(ProductQuantity::class, 'product_id');
     }
 }

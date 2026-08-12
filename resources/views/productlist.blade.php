@@ -20,7 +20,6 @@
             <th>Product</th>
             <th>Price</th>
             <th>description</th>
-            <th>Stock</th>
             <th>Action</th>
         </thead>
         @foreach($products as $row)
@@ -29,7 +28,6 @@
             <td>{{$row->name}}</td>
             <td>${{$row->price}}</td>
             <td>{{$row->description}}</td>
-            <td>{{$row->stock}}</td>
             <td><a href='delete_product/{{$row->id}}'>Delete</a> <a href='edit_product/{{$row->id}}'>Edit</a></td>
         </tr>
         @endforeach

@@ -20,42 +20,35 @@ use Razorpay\Api\Api;
 class CartController extends Controller
 {
     //
-    public function add_cart(Request $request){
-    $user = Auth::user();
+    public function add_cart(Request $request)
+    {
+        $user = Auth::user();
 
-    if (!$user) {
-        return redirect()->back()->with('error', 'Please login first');
-    }
+        if (!$user) {
+            return redirect()->back()->with('error', 'Please login first');
+        }
 
-    $cart = Cart::where('user_id', $user->id)->first();
+        $cart = Cart::where('user_id', $user->id)->first();
 
-    if (!$cart) {
-        $cart = Cart::create([
-            'user_id' => $user->id,
-        ]);
-    }
+        if (!$cart) {
+            $cart = Cart::create(['user_id' => $user->id]);
+        }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Collect selected options (Size, Color, etc.) from the product page
-    | Expected input: options[Size] = M, options[Color] = White
-    |--------------------------------------------------------------------------
-    */
+        $selectedOptions = $request->filled('options') ? $request->options : null;
 
-    $selectedOptions = $request->filled('options') ? $request->options : null;
-
-    /*
-    |--------------------------------------------------------------------------
-    | Only merge quantity into an existing row if it's the SAME product
-    | with the SAME selected options and no custom image. A plain
-        | "Add to Cart" click should never merge into a customized row.
-        |--------------------------------------------------------------------------
-        */
+        // Resolve selected quantity tier (if the product has any)
+        $tier = null;
+        if ($request->filled('quantity_id')) {
+            $tier = \App\Models\ProductQuantity::where('id', $request->quantity_id)
+                ->where('product_id', $request->product_id)
+                ->first();
+        }
 
         $existingItem = CartItem::where('cart_id', $cart->id)
             ->where('product_id', $request->product_id)
             ->whereNull('custom_image')
             ->where('selected_options', json_encode($selectedOptions))
+            ->where('product_quantity_id', $tier->id ?? null)
             ->first();
 
         if ($existingItem) {
@@ -63,10 +56,13 @@ class CartController extends Controller
             $existingItem->save();
         } else {
             CartItem::create([
-                'cart_id'          => $cart->id,
-                'product_id'       => $request->product_id,
-                'quantity'         => 1,
-                'selected_options' => $selectedOptions,
+                'cart_id'             => $cart->id,
+                'product_id'          => $request->product_id,
+                'quantity'            => 1,
+                'selected_options'    => $selectedOptions,
+                'product_quantity_id' => $tier->id ?? null,
+                'tier_qty'            => $tier->quantity ?? null,
+                'tier_price'          => $tier->price ?? null,
             ]);
         }
 
@@ -189,26 +185,34 @@ class CartController extends Controller
                 ->with('error', 'Unable to verify payment.');
         }
     }
-    public function order_list()
+
+    public function customize($id)
     {
-        $user = Auth::user();
+        $product = Products::with(['images', 'options', 'quantities'])->findOrFail($id);
 
-        if (!$user) {
-            return redirect()->back()->with('error', 'Please login');
+        $customizableImages = $product->images->where('is_customizable', true)->values();
+
+        if ($customizableImages->isEmpty() && $product->image) {
+            $customizableImages = collect([
+                (object) [
+                    'id'    => 0,
+                    'image' => $product->image,
+                ],
+            ]);
         }
 
-        if ($user->role === 'admin') {
-            $orders = Order::with('items.product')->get();
-        } 
-        else {
-            $orders = Order::with('items.product')
-                ->where('user_id', $user->id)
-                ->get();
+        if ($customizableImages->isEmpty()) {
+            return redirect('/product/' . $id)
+                ->with('error', 'This product has no customizable images.');
         }
 
-        return view('orders', ['orders' => $orders]);
+        return view('customize', [
+            'product'            => $product,
+            'customizableImages' => $customizableImages,
+        ]);
     }
-    public function order_view($id)
+
+    public function saveCustomization(Request $request, $id)
     {
         $user = Auth::user();
 
@@ -216,144 +220,122 @@ class CartController extends Controller
             return redirect('/login');
         }
 
-        $order = Order::with([
-            'user',
-            'items.product'
-        ])->findOrFail($id);
+        $product = Products::with(['options', 'quantities'])->findOrFail($id);
 
-        // Normal user can only see their own order
-        if ($user->role !== 'admin' && $order->user_id != $user->id) {
-            abort(403);
-        }
-
-        return view('order_view', compact('order'));
-    }
-    public function customize($id)
-{
-    $product = Products::with(['images', 'options'])->findOrFail($id);
-
-    $customizableImages = $product->images->where('is_customizable', true)->values();
-
-    if ($customizableImages->isEmpty() && $product->image) {
-        $customizableImages = collect([
-            (object) [
-                'id'    => 0,
-                'image' => $product->image,
-            ],
-        ]);
-    }
-
-    if ($customizableImages->isEmpty()) {
-        return redirect('/product/' . $id)
-            ->with('error', 'This product has no customizable images.');
-    }
-
-    return view('customize', [
-        'product'            => $product,
-        'customizableImages' => $customizableImages,
-    ]);
-}
-
-public function saveCustomization(Request $request, $id)
-{
-    $user = Auth::user();
-
-    if (!$user) {
-        return redirect('/login');
-    }
-
-    $product = Products::with('options')->findOrFail($id);
-
-    $request->validate([
-        'custom_images'   => 'required|array|min:1',
-        'custom_images.*' => 'required|string',
-    ]);
-
-    /*
-    |--------------------------------------------------------------------------
-    | Require every dynamic option to be selected, same as the product page
-    |--------------------------------------------------------------------------
-    */
-
-    if ($product->options->count()) {
         $request->validate([
-            'options' => 'required|array',
+            'custom_images'   => 'required|array|min:1',
+            'custom_images.*' => 'required|string',
         ]);
 
-        foreach ($product->options as $option) {
+        /*
+        |--------------------------------------------------------------------------
+        | Require every dynamic option to be selected, same as the product page
+        |--------------------------------------------------------------------------
+        */
+
+        if ($product->options->count()) {
             $request->validate([
-                'options.' . $option->name => 'required|string',
+                'options' => 'required|array',
             ]);
-        }
-    }
 
-    $cart = Cart::firstOrCreate(['user_id' => $user->id]);
-
-    $folder = public_path('uploads/customizations');
-
-    if (!file_exists($folder)) {
-        mkdir($folder, 0755, true);
-    }
-
-    $savedFiles = [];
-
-    foreach ($request->custom_images as $imageId => $imageData) {
-
-        if (!preg_match('/^data:image\/(\w+);base64,/', $imageData, $matches)) {
-            continue;
+            foreach ($product->options as $option) {
+                $request->validate([
+                    'options.' . $option->name => 'required|string',
+                ]);
+            }
         }
 
-        $data = substr($imageData, strpos($imageData, ',') + 1);
-        $data = base64_decode($data);
+        /*
+        |--------------------------------------------------------------------------
+        | Require a quantity tier to be selected if this product has any
+        |--------------------------------------------------------------------------
+        */
 
-        if ($data === false) {
-            continue;
+        $tier = null;
+
+        if ($product->quantities->count()) {
+            $request->validate([
+                'quantity_id' => 'required|exists:product_quantity_prices,id',
+            ]);
+
+            $tier = $product->quantities->firstWhere('id', (int) $request->quantity_id);
+
+            if (!$tier) {
+                return redirect()->back()
+                    ->with('error', 'Selected quantity is not valid for this product.');
+            }
         }
 
-        $extension = strtolower($matches[1]);
+        $cart = Cart::firstOrCreate(['user_id' => $user->id]);
 
-        if ($extension === 'jpeg') {
-            $extension = 'jpg';
+        $folder = public_path('uploads/customizations');
+
+        if (!file_exists($folder)) {
+            mkdir($folder, 0755, true);
         }
 
-        $filename = time() . '_' . uniqid() . '.' . $extension;
+        $savedFiles = [];
 
-        file_put_contents($folder . '/' . $filename, $data);
+        foreach ($request->custom_images as $imageId => $imageData) {
 
-        $savedFiles[] = $filename;
+            if (!preg_match('/^data:image\/(\w+);base64,/', $imageData, $matches)) {
+                continue;
+            }
+
+            $data = substr($imageData, strpos($imageData, ',') + 1);
+            $data = base64_decode($data);
+
+            if ($data === false) {
+                continue;
+            }
+
+            $extension = strtolower($matches[1]);
+
+            if ($extension === 'jpeg') {
+                $extension = 'jpg';
+            }
+
+            $filename = time() . '_' . uniqid() . '.' . $extension;
+
+            file_put_contents($folder . '/' . $filename, $data);
+
+            $savedFiles[] = $filename;
+        }
+
+        if (empty($savedFiles)) {
+            return redirect()->back()
+                ->with('error', 'Please customize at least one image before saving.');
+        }
+
+        $selectedOptions = $request->filled('options') ? $request->options : null;
+
+        /*
+        |--------------------------------------------------------------------------
+        | ONE cart row holding every customized image (front, back, etc.)
+        |--------------------------------------------------------------------------
+        */
+
+        CartItem::create([
+            'cart_id'             => $cart->id,
+            'product_id'          => $product->id,
+            'quantity'            => 1,
+            'custom_image'        => $savedFiles[0],
+            'custom_images'       => $savedFiles,
+            'selected_options'    => $selectedOptions,
+            'product_quantity_id' => $tier->id ?? null,
+            'tier_qty'            => $tier->quantity ?? null,
+            'tier_price'          => $tier->price ?? null,
+        ]);
+
+        try {
+            Mail::to($user->email)->send(new CustomizationMail($product, $savedFiles));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Customization mail failed: ' . $e->getMessage());
+        }
+
+        return redirect('/cart')
+            ->with('success', count($savedFiles) . ' customized image(s) added to cart!');
     }
-
-    if (empty($savedFiles)) {
-        return redirect()->back()
-            ->with('error', 'Please customize at least one image before saving.');
-    }
-
-    $selectedOptions = $request->filled('options') ? $request->options : null;
-
-    /*
-    |--------------------------------------------------------------------------
-    | ONE cart row holding every customized image (front, back, etc.)
-    |--------------------------------------------------------------------------
-    */
-
-    CartItem::create([
-        'cart_id'          => $cart->id,
-        'product_id'       => $product->id,
-        'quantity'         => 1,
-        'custom_image'     => $savedFiles[0],
-        'custom_images'    => $savedFiles,
-        'selected_options' => $selectedOptions,
-    ]);
-
-    try {
-        Mail::to($user->email)->send(new CustomizationMail($product, $savedFiles));
-    } catch (\Exception $e) {
-        \Illuminate\Support\Facades\Log::error('Customization mail failed: ' . $e->getMessage());
-    }
-
-    return redirect('/cart')
-        ->with('success', count($savedFiles) . ' customized image(s) added to cart!');
-}
 public function shipping_form()
 {
     $user = Auth::user();
@@ -418,7 +400,7 @@ public function checkout()
         return redirect('/cart')->with('error', 'Cart not found');
     }
 
-    $items = CartItem::where('cart_id', $cart->id)->get();
+    $items = CartItem::with('product')->where('cart_id', $cart->id)->get();
 
     if ($items->isEmpty()) {
         return redirect('/cart')->with('error', 'Cart is empty');
@@ -430,19 +412,28 @@ public function checkout()
 
     foreach ($items as $item) {
 
-        $product = Products::find($item->product_id);
+        $product = $item->product;
 
         if (!$product) {
             continue;
+        }
+
+        // Use the tier price if this item was added with a quantity tier,
+        // otherwise fall back to the plain product price.
+        $unitPrice = $item->tier_price ?? $product->price;
+
+        $productName = $product->name;
+        if ($item->tier_qty) {
+            $productName .= ' (' . $item->tier_qty . ' pcs / batch)';
         }
 
         $lineItems[] = [
             'price_data' => [
                 'currency' => 'inr',
                 'product_data' => [
-                    'name' => $product->name,
+                    'name' => $productName,
                 ],
-                'unit_amount' => (int) ($product->price * 100),
+                'unit_amount' => (int) round($unitPrice * 100),
             ],
             'quantity' => $item->quantity,
         ];
@@ -479,7 +470,7 @@ public function order($session = null)
         return redirect()->back()->with('error', 'No cart found');
     }
 
-    $items = CartItem::where('cart_id', $cart->id)->get();
+    $items = CartItem::with('product')->where('cart_id', $cart->id)->get();
 
     if ($items->isEmpty()) {
         return redirect()->back()->with('error', 'Cart is empty');
@@ -496,22 +487,13 @@ public function order($session = null)
     try {
 
         foreach ($items as $item) {
-
-            $product = Products::find($item->product_id);
-
-            if (!$product) {
+            if (!$item->product) {
                 DB::rollBack();
                 return redirect()->back()->with('error', 'Product not found');
             }
-
-            if ($product->stock < $item->quantity) {
-                DB::rollBack();
-                return redirect()->back()->with(
-                    'error',
-                    $product->name . ' is out of stock (Available: ' . $product->stock . ')'
-                );
-            }
         }
+
+        // (stock availability check removed — stock is no longer tracked)
 
         $order = Order::create([
             'user_id' => $user->id,
@@ -531,23 +513,28 @@ public function order($session = null)
 
         foreach ($items as $item) {
 
-            $product = Products::find($item->product_id);
+            $product = $item->product;
 
-            $total = $product->price * $item->quantity;
+            // Use the tier price (per batch) if this item has one,
+            // otherwise fall back to the plain product price.
+            $unitPrice = $item->tier_price ?? $product->price;
+            $total = $unitPrice * $item->quantity;
             $grandTotal += $total;
 
             OrderItem::create([
-                'order_id'         => $order->id,
-                'product_id'       => $product->id,
-                'quantity'         => $item->quantity,
-                'price'            => $product->price,
-                'custom_image'     => $item->custom_image,
-                'custom_images'    => $item->custom_images,
-                'selected_options' => $item->selected_options,
+                'order_id'             => $order->id,
+                'product_id'           => $product->id,
+                'quantity'             => $item->quantity,
+                'price'                => $unitPrice,
+                'custom_image'         => $item->custom_image,
+                'custom_images'        => $item->custom_images,
+                'selected_options'     => $item->selected_options,
+                'product_quantity_id'  => $item->product_quantity_id,
+                'tier_qty'             => $item->tier_qty,
+                'tier_price'           => $item->tier_price,
             ]);
 
-            $product->stock -= $item->quantity;
-            $product->save();
+            // (stock decrement removed — stock is no longer tracked)
         }
 
         $order->total_price = $grandTotal;
@@ -573,6 +560,45 @@ public function order($session = null)
         dd($e->getMessage());
     }
 }
+public function order_list()
+{
+    $user = Auth::user();
+
+    if (!$user) {
+        return redirect()->back()->with('error', 'Please login');
+    }
+
+    if ($user->role === 'admin') {
+        $orders = Order::with('items.product')->get();
+    } 
+    else {
+        $orders = Order::with('items.product')
+            ->where('user_id', $user->id)
+            ->get();
+    }
+
+    return view('orders', ['orders' => $orders]);
+}
+public function order_view($id)
+{
+    $user = Auth::user();
+
+    if (!$user) {
+        return redirect('/login');
+    }
+
+    $order = Order::with([
+        'user',
+        'items.product'
+    ])->findOrFail($id);
+
+    // Normal user can only see their own order
+    if ($user->role !== 'admin' && $order->user_id != $user->id) {
+        abort(403);
+    }
+
+    return view('order_view', compact('order'));
+}
 public function checkout_razorpay()
 {
     $user = Auth::user();
@@ -591,7 +617,7 @@ public function checkout_razorpay()
         return redirect('/cart')->with('error', 'Cart not found');
     }
 
-    $items = CartItem::where('cart_id', $cart->id)->get();
+    $items = CartItem::with('product')->where('cart_id', $cart->id)->get();
 
     if ($items->isEmpty()) {
         return redirect('/cart')->with('error', 'Cart is empty');
@@ -600,9 +626,10 @@ public function checkout_razorpay()
     $grandTotal = 0;
 
     foreach ($items as $item) {
-        $product = Products::find($item->product_id);
+        $product = $item->product;
         if ($product) {
-            $grandTotal += $product->price * $item->quantity;
+            $unitPrice = $item->tier_price ?? $product->price;
+            $grandTotal += $unitPrice * $item->quantity;
         }
     }
 

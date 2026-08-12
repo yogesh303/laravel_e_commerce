@@ -23,6 +23,7 @@ class User extends Authenticatable
         'account_type',
         'company_name',
         'industry',
+        'gst_no',
         'mobile_number',
         'mobile_verified_at',
     ];

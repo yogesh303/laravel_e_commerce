@@ -50,21 +50,32 @@
         <div class="col-lg-6">
             <div class="card shadow p-4">
 
-                <h3>{{ $product->name }}</h3>
-                <div class="fs-4 text-success fw-bold mb-3">₹ {{ number_format($product->price) }}</div>
+            <h3>{{ $product->name }}</h3>
+            <div class="fs-4 text-success fw-bold mb-3" id="displayPrice">
+                ₹ {{ number_format($product->quantities->first()->price ?? $product->price) }}
+            </div>
 
-                <p class="text-muted">{{ $product->description }}</p>
+            <p class="text-muted">{{ $product->description }}</p>
 
-                @if($product->stock > 0)
-                    <span class="badge bg-success mb-3">In Stock ({{ $product->stock }})</span>
-                @else
-                    <span class="badge bg-danger mb-3">Out of Stock</span>
-                @endif
+            <!-- (stock badge removed) -->
 
                 <!-- Add to Cart (with dynamic options: Size, Color, etc.) -->
-                <form method="POST" action="{{ url('/add_cart') }}" class="mb-3">
+                <form method="POST" action="{{ url('/add_cart') }}" class="mb-3" id="addToCartForm">
                     @csrf
                     <input type="hidden" name="product_id" value="{{ $product->id }}">
+
+                    @if($product->quantities->count())
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Quantity</label>
+                            <select class="form-select" name="quantity_id" id="quantitySelect" required>
+                                @foreach($product->quantities as $q)
+                                    <option value="{{ $q->id }}" data-price="{{ $q->price }}" data-qty="{{ $q->quantity }}">
+                                        {{ $q->quantity }} pcs — ₹{{ number_format($q->price) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
 
                     @if($product->options->count())
                         @foreach($product->options as $option)
@@ -101,5 +112,21 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const qtySelect = document.getElementById('quantitySelect');
+    const priceEl = document.getElementById('displayPrice');
+
+    if (qtySelect) {
+        function updatePrice() {
+            const opt = qtySelect.options[qtySelect.selectedIndex];
+            const price = parseFloat(opt.dataset.price);
+            priceEl.textContent = '₹ ' + price.toLocaleString('en-IN');
+        }
+        qtySelect.addEventListener('change', updatePrice);
+        updatePrice(); // set correct price for the pre-selected (first) tier on load
+    }
+});
+</script>
 </body>
 </html>

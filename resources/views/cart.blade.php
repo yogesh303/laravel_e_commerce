@@ -38,9 +38,10 @@
 
         @forelse($carts as $item)
             @php
-            $total = $item->product->price * $item->quantity;
-            $grandTotal += $total;
-        @endphp
+                $unitPrice = $item->tier_price ?? $item->product->price;
+                $total = $unitPrice * $item->quantity;
+                $grandTotal += $total;
+            @endphp
 
         <tr>
             <td>
@@ -79,7 +80,14 @@
                     @endif
                 </td>
 
-                <td>₹ {{ $item->product->price }}</td>
+                <td>
+                    @if($item->tier_price)
+                        ₹ {{ number_format($item->tier_price) }}
+                        <div><small class="text-muted">per {{ $item->tier_qty }} pcs</small></div>
+                    @else
+                        ₹ {{ number_format($item->product->price) }}
+                    @endif
+                </td>
 
                 <td>
                     <div class="d-flex justify-content-center align-items-center">
@@ -91,7 +99,12 @@
                             <button class="btn btn-danger btn-sm">-</button>
                         </form>
 
-                        <span class="mx-2">{{ $item->quantity }}</span>
+                        <span class="mx-2">
+                            {{ $item->quantity }}
+                            @if($item->tier_qty)
+                                <div><small class="text-muted">{{ $item->quantity * $item->tier_qty }} pcs total</small></div>
+                            @endif
+                        </span>
 
                         <form action="{{ url('add_quantity') }}" method="POST">
                             @csrf
@@ -103,7 +116,7 @@
                     </div>
                 </td>
 
-                <td>₹ {{ $total }}</td>
+                <td>₹ {{ number_format($total) }}</td>
             </tr>
 
         @empty
@@ -116,7 +129,7 @@
     </table>
 
     <div class="text-end">
-        <h4>Total: ₹ {{ $grandTotal }}</h4>
+        <h4>Total: ₹ {{ number_format($grandTotal) }}</h4>
     </div>
 
     @if(count($carts) > 0)

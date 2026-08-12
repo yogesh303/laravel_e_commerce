@@ -79,6 +79,7 @@ class UserControl extends Controller
 
         if ($data->input('account_type') === 'business') {
             $rules['company_name'] = 'required|string|max:255';
+            $rules['gst_no'] = 'required|string|max:20';
             $rules['industry'] = 'required|string|max:255';
         }
 
@@ -102,6 +103,7 @@ class UserControl extends Controller
             'role' => 'user',
             'account_type' => $validated['account_type'],
             'company_name' => $validated['company_name'] ?? null,
+            'gst_no' => $validated['gst_no'] ?? null,
             'industry' => $validated['industry'] ?? null,
             'mobile_number' => $validated['mobile_number'],
             'mobile_verified_at' => now(),
