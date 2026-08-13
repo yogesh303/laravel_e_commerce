@@ -1,6 +1,6 @@
 @php
-    $user_role = Auth::user()->role;
-    $user_email = Auth::user()->email;
+    $user_role  = Auth::check() ? Auth::user()->role  : null;
+    $user_email = Auth::check() ? Auth::user()->email : null;
 @endphp
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container">

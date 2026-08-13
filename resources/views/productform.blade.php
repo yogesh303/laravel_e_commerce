@@ -144,14 +144,23 @@
                             <small class="text-muted d-block mb-2">Existing images — uncheck "Remove" to delete on save</small>
                             <div class="row g-2">
                                 @foreach($products->images as $img)
-                                    <div class="col-md-3 border rounded p-2">
+                                    <div class="col-md-3 border rounded p-2 image-block" data-existing-img="{{ $img->id }}">
                                         <img src="{{ asset('images/' . $img->image) }}" class="img-fluid mb-2" style="height:90px;object-fit:cover;width:100%;">
                                         <input type="hidden" name="existing_images[]" value="{{ $img->id }}">
+
                                         <div class="form-check">
                                             <input type="checkbox" class="form-check-input" name="existing_customizable_{{ $img->id }}" {{ $img->is_customizable ? 'checked' : '' }}>
                                             <label class="form-check-label small">Customizable</label>
                                         </div>
-                                        <div class="form-check">
+
+                                        <label class="small fw-bold mt-1 mb-0 d-block">Show for value(s):</label>
+                                        <div class="value-checkboxes"
+                                            data-field-base="existing_image_values[{{ $img->id }}]"
+                                            data-selected="{{ json_encode($img->trigger_values ?? []) }}">
+                                            <small class="text-muted">No option values yet</small>
+                                        </div>
+
+                                        <div class="form-check mt-1">
                                             <input type="checkbox" class="form-check-input" name="remove_images[]" value="{{ $img->id }}">
                                             <label class="form-check-label small text-danger">Remove image</label>
                                         </div>
@@ -207,23 +216,28 @@ document.addEventListener('DOMContentLoaded', function () {
     const imagesWrapper = document.getElementById('imagesWrapper');
 
     document.getElementById('addImage').addEventListener('click', function () {
-        const row = document.createElement('div');
-        row.className = 'row g-2 mb-2 align-items-center image-row';
-        row.innerHTML = `
-            <div class="col-md-7">
-                <input type="file" name="images[${imageIndex}]" class="form-control" accept="image/*">
+    const row = document.createElement('div');
+    row.className = 'row g-2 mb-2 align-items-start image-row image-block';
+    row.dataset.newImgIndex = imageIndex;
+    row.innerHTML = `
+        <div class="col-md-5">
+            <input type="file" name="images[${imageIndex}]" class="form-control" accept="image/*">
+        </div>
+        <div class="col-md-7">
+            <div class="form-check">
+                <input type="checkbox" class="form-check-input" name="customizable[${imageIndex}]" value="1">
+                <label class="form-check-label">Customizable</label>
             </div>
-            <div class="col-md-3">
-                <div class="form-check">
-                    <input type="checkbox" class="form-check-input" name="customizable[${imageIndex}]" value="1">
-                    <label class="form-check-label">Customizable</label>
-                </div>
+            <label class="small fw-bold mt-1 mb-0 d-block">Show for value(s):</label>
+            <div class="value-checkboxes" data-field-base="image_values[${imageIndex}]" data-selected="{}">
+                <small class="text-muted">No option values yet</small>
             </div>
             <div class="col-md-2">
                 <button type="button" class="btn btn-outline-danger w-100 remove-image">Remove</button>
             </div>`;
         imagesWrapper.appendChild(row);
         imageIndex++;
+        rebuildValueCheckboxes();
     });
 
     imagesWrapper.addEventListener('click', function (e) {
@@ -275,6 +289,95 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // bind auto-calc to any pre-existing rows (edit mode)
     document.querySelectorAll('.quantity-row').forEach(bindQtyAutoCalc);
+
+    /* ---------------- Dynamic "show for value(s)" checkboxes on images ---------------- */
+    function collectAllOptionValues() {
+        const values = new Set();
+        document.querySelectorAll('#optionsWrapper .option-row input[name$="[values]"]').forEach(function (input) {
+            (input.value || '').split(',').forEach(function (v) {
+                const trimmed = v.trim();
+                if (trimmed) values.add(trimmed);
+            });
+        });
+        return Array.from(values);
+    }
+
+    /* ---------------- Dynamic "show for value(s)" checkboxes on images, grouped by option ---------------- */
+
+    function collectOptionsWithValues() {
+        // Returns [{ name: 'Size', values: ['S','M','XL'] }, { name: 'Color', values: [...] }, ...]
+        const options = [];
+        document.querySelectorAll('#optionsWrapper .option-row').forEach(function (row) {
+            const nameInput = row.querySelector('input[name$="[name]"]');
+            const valuesInput = row.querySelector('input[name$="[values]"]');
+            const optName = (nameInput.value || '').trim();
+            const values = (valuesInput.value || '').split(',').map(v => v.trim()).filter(Boolean);
+            if (optName && values.length) {
+                options.push({ name: optName, values: values });
+            }
+        });
+        return options;
+    }
+
+    function rebuildValueCheckboxes() {
+        const options = collectOptionsWithValues();
+
+        document.querySelectorAll('.value-checkboxes').forEach(function (container) {
+
+            // preserve currently checked values per option before rebuild
+            const currentlyChecked = {}; // { optName: Set(values) }
+            container.querySelectorAll('input[type="checkbox"]:checked').forEach(function (cb) {
+                const opt = cb.dataset.option;
+                if (!currentlyChecked[opt]) currentlyChecked[opt] = new Set();
+                currentlyChecked[opt].add(cb.value);
+            });
+
+            // on first build, seed from data-selected (JSON: { "Size": ["S"], "Color": ["Red"] })
+            if (container.dataset.seeded !== '1') {
+                try {
+                    const seed = JSON.parse(container.dataset.selected || '{}');
+                    Object.keys(seed).forEach(function (opt) {
+                        if (!currentlyChecked[opt]) currentlyChecked[opt] = new Set();
+                        seed[opt].forEach(v => currentlyChecked[opt].add(v));
+                    });
+                } catch (e) {}
+                container.dataset.seeded = '1';
+            }
+
+            if (options.length === 0) {
+                container.innerHTML = '<small class="text-muted">No option values yet</small>';
+                return;
+            }
+
+            const baseFieldName = container.dataset.fieldBase; // e.g. "image_values[0]" or "existing_image_values[12]"
+
+            container.innerHTML = options.map(function (opt) {
+                const checkedSet = currentlyChecked[opt.name] || new Set();
+                const rows = opt.values.map(function (val) {
+                    const checked = checkedSet.has(val) ? 'checked' : '';
+                    const safeId = (baseFieldName + '_' + opt.name + '_' + val).replace(/[^a-zA-Z0-9]/g, '');
+                    return `
+                        <div class="form-check form-check-inline">
+                            <input type="checkbox" class="form-check-input" id="${safeId}"
+                                name="${baseFieldName}[${opt.name}][]"
+                                data-option="${opt.name}"
+                                value="${val.replace(/"/g, '&quot;')}" ${checked}>
+                            <label class="form-check-label small" for="${safeId}">${val}</label>
+                        </div>`;
+                }).join('');
+
+                return `<div class="mb-1"><strong class="small d-block">${opt.name}:</strong>${rows}</div>`;
+            }).join('');
+        });
+    }
+
+    optionsWrapper.addEventListener('input', function (e) {
+        if (e.target.matches('input[name$="[values]"], input[name$="[name]"]')) {
+            rebuildValueCheckboxes();
+        }
+    });
+
+    rebuildValueCheckboxes();
 
 });
 </script>

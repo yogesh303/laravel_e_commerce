@@ -131,7 +131,14 @@ class Products extends Controller
             if ($request->filled('existing_images')) {
                 foreach ($request->existing_images as $imgId) {
                     $isCustomizable = $request->has("existing_customizable_{$imgId}");
-                    ProductImage::where('id', $imgId)->update(['is_customizable' => $isCustomizable]);
+
+                    $triggerValues = $request->input("existing_image_values.$imgId", []);
+                    $triggerValues = array_filter($triggerValues, fn($vals) => !empty($vals));
+
+                    ProductImage::where('id', $imgId)->update([
+                        'is_customizable' => $isCustomizable,
+                        'trigger_values'  => $triggerValues,
+                    ]);
                 }
             }
 
@@ -204,10 +211,15 @@ class Products extends Controller
             $imageName = time() . '_' . $index . '_' . uniqid() . '.' . $file->extension();
             $file->move(public_path('images'), $imageName);
 
+            // e.g. ['Size' => ['S'], 'Color' => ['Red'], 'Position' => ['front and back','back']]
+            $triggerValues = $request->input("image_values.$index", []);
+            $triggerValues = array_filter($triggerValues, fn($vals) => !empty($vals));
+
             ProductImage::create([
                 'product_id'      => $product->id,
                 'image'           => $imageName,
                 'is_customizable' => $request->has("customizable.$index"),
+                'trigger_values'  => $triggerValues,
             ]);
         }
     }

@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 
 class ProductImage extends Model
 {
-    protected $fillable = ['product_id', 'image', 'is_customizable', 'variant_value'];
+    protected $fillable = ['product_id', 'image', 'is_customizable','trigger_values', 'variant_value'];
 
     protected $casts = [
         'is_customizable' => 'boolean',
+        'trigger_values'   => 'array',
     ];
 
     public function product()

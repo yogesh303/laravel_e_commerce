@@ -33,6 +33,24 @@
             <input type="text" name="shipping_phone" class="form-control" value="{{ old('shipping_phone', $saved['shipping_phone'] ?? '') }}" required>
         </div>
 
+        @if(auth()->user()->account_type === 'business')
+            <div class="mb-3">
+                <label>GST Number</label>
+                <input type="text" name="shipping_gst_no" class="form-control text-uppercase"
+                       maxlength="15"
+                       placeholder="e.g. 24ABCDE1234F1Z5"
+                       value="{{ old('shipping_gst_no', $saved['shipping_gst_no'] ?? '') }}"
+                       required>
+                <div class="form-text">Required for business accounts — this will appear on your invoice.</div>
+            </div>
+            <div class="mb-3">
+                <label>Company Name</label>
+                <input type="text" name="shipping_company" class="form-control"
+                       value="{{ old('shipping_company', $saved['shipping_company'] ?? '') }}"
+                       required>
+            </div>
+        @endif
+
         <div class="mb-3">
             <label>Address Line 1</label>
             <input type="text" name="shipping_address_line1" class="form-control" value="{{ old('shipping_address_line1', $saved['shipping_address_line1'] ?? '') }}" required>
@@ -50,7 +68,28 @@
             </div>
             <div class="col-md-6 mb-3">
                 <label>State</label>
-                <input type="text" name="shipping_state" class="form-control" value="{{ old('shipping_state', $saved['shipping_state'] ?? '') }}" required>
+                @php
+                    $indianStates = [
+                        'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+                        'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand',
+                        'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur',
+                        'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab',
+                        'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura',
+                        'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+                        'Andaman and Nicobar Islands', 'Chandigarh',
+                        'Dadra and Nagar Haveli and Daman and Diu', 'Delhi',
+                        'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry',
+                    ];
+                    $selectedState = old('shipping_state', $saved['shipping_state'] ?? '');
+                @endphp
+                <select name="shipping_state" class="form-select" required>
+                    <option value="" disabled {{ $selectedState === '' ? 'selected' : '' }}>Select State</option>
+                    @foreach($indianStates as $state)
+                        <option value="{{ $state }}" {{ $selectedState === $state ? 'selected' : '' }}>
+                            {{ $state }}
+                        </option>
+                    @endforeach
+                </select>
             </div>
         </div>
 

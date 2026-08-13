@@ -195,8 +195,9 @@ class CartController extends Controller
         if ($customizableImages->isEmpty() && $product->image) {
             $customizableImages = collect([
                 (object) [
-                    'id'    => 0,
-                    'image' => $product->image,
+                    'id'             => 0,
+                    'image'          => $product->image,
+                    'trigger_values' => [], // untagged = always shown
                 ],
             ]);
         }
@@ -364,7 +365,7 @@ public function save_shipping(Request $request)
         return redirect('/login');
     }
 
-    $validated = $request->validate([
+    $rules = [
         'shipping_name' => 'required|string|max:255',
         'shipping_phone' => 'required|string|max:20',
         'shipping_address_line1' => 'required|string|max:255',
@@ -373,9 +374,21 @@ public function save_shipping(Request $request)
         'shipping_state' => 'required|string|max:100',
         'shipping_pincode' => 'required|string|max:10',
         'shipping_country' => 'required|string|max:100',
-    ]);
+    ];
 
-    // Keep the address in session until payment completes, then it's copied onto the Order
+    // GST number only required (and only accepted) for business accounts
+    if ($user->account_type === 'business') {
+        $rules['shipping_company'] = 'required|string|max:20';
+        $rules['shipping_gst_no'] = 'required|string|max:15';
+    }
+
+    $validated = $request->validate($rules);
+
+    // Never persist a GST number for non-business accounts, even if injected
+    if ($user->account_type !== 'business') {
+        unset($validated['shipping_gst_no']);
+    }
+
     session(['shipping_address' => $validated]);
 
     return redirect()->route('payment.choice');
@@ -507,6 +520,8 @@ public function order($session = null)
             'shipping_state' => $shipping['shipping_state'],
             'shipping_pincode' => $shipping['shipping_pincode'],
             'shipping_country' => $shipping['shipping_country'],
+            'shipping_gst_no' => $shipping['shipping_gst_no'] ?? null,
+            'shipping_company' => $shipping['shipping_company'] ?? null,
         ]);
 
         $grandTotal = 0;
@@ -690,5 +705,56 @@ public function payment_choice()
 
     return view('payment_choice');
 }
-}
 
+public function invoice($id)
+{
+    $user = Auth::user();
+
+    if (!$user) {
+        return redirect('/login');
+    }
+
+    $order = Order::with(['user', 'items.product'])->findOrFail($id);
+
+    if ($user->role !== 'admin' && $order->user_id != $user->id) {
+        abort(403);
+    }
+
+    $gstRate = 18; // %
+
+    // Per-item GST breakup (item price is assumed GST-inclusive)
+    $items = $order->items->map(function ($item) use ($gstRate) {
+        $lineTotal   = $item->price * $item->quantity;
+        $taxable     = $lineTotal / (1 + $gstRate / 100);
+        $gstAmount   = $lineTotal - $taxable;
+
+        return (object) [
+            'name'        => $item->product->name ?? 'Product Deleted',
+            'quantity'    => $item->quantity,
+            'price'       => $item->price,
+            'line_total'  => $lineTotal,
+            'taxable'     => $taxable,
+            'gst_amount'  => $gstAmount,
+            'cgst'        => $gstAmount / 2,
+            'sgst'        => $gstAmount / 2,
+        ];
+    });
+
+    $grandTotal   = $order->total_price;
+    $taxableTotal = $grandTotal / (1 + $gstRate / 100);
+    $gstTotal     = $grandTotal - $taxableTotal;
+    $cgstTotal    = $gstTotal / 2;
+    $sgstTotal    = $gstTotal / 2;
+
+    return view('invoice', [
+        'order'        => $order,
+        'items'        => $items,
+        'gstRate'      => $gstRate,
+        'taxableTotal' => $taxableTotal,
+        'gstTotal'     => $gstTotal,
+        'cgstTotal'    => $cgstTotal,
+        'sgstTotal'    => $sgstTotal,
+        'grandTotal'   => $grandTotal,
+    ]);
+}
+}

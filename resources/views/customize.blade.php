@@ -65,6 +65,14 @@ body { background: #f5f6f8; }
 .status-done { background: #d1e7dd; color: #0a3622; }
 
 .nav-tabs .nav-link.active { font-weight: 600; }
+
+.select-value-prompt {
+    padding: 60px 20px;
+    text-align: center;
+    color: #888;
+    background: #fafafa;
+    border-radius: 12px;
+}
 </style>
 </head>
 <body>
@@ -103,22 +111,6 @@ body { background: #f5f6f8; }
             Switch tabs to place your logo on each one, then save all at once.
         </p>
 
-        <!-- Tabs -->
-        <ul class="nav nav-tabs mb-3" id="imageTabs" role="tablist">
-            @foreach($customizableImages as $i => $img)
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link {{ $i === 0 ? 'active' : '' }}"
-                            id="tab-btn-{{ $img->id }}"
-                            data-bs-toggle="tab"
-                            data-bs-target="#tab-{{ $img->id }}"
-                            type="button">
-                        Image {{ $i + 1 }}
-                        <span class="customize-status status-empty ms-1" id="status-{{ $img->id }}">not customized</span>
-                    </button>
-                </li>
-            @endforeach
-        </ul>
-
         <form method="POST"
               action="{{ route('product.customize.save', $product->id) }}"
               id="customizeForm">
@@ -140,13 +132,13 @@ body { background: #f5f6f8; }
                 </div>
             @endif
 
-            <!-- Product options: Size, Color, etc. — MUST be inside the form to submit -->
+            <!-- Product options: Size, Color, Position, etc. — MUST be inside the form to submit -->
             @if($product->options->count())
                 <div class="row g-3 mb-4">
                     @foreach($product->options as $option)
                         <div class="col-md-4">
                             <label class="form-label fw-bold">{{ $option->name }}</label>
-                            <select class="form-select" name="options[{{ $option->name }}]" required>
+                            <select class="form-select option-trigger-select" name="options[{{ $option->name }}]" required>
                                 <option value="">Select {{ $option->name }}</option>
                                 @foreach($option->values_array as $val)
                                     <option value="{{ $val }}"
@@ -160,11 +152,34 @@ body { background: #f5f6f8; }
                 </div>
             @endif
 
+            <!-- Tabs -->
+            <ul class="nav nav-tabs mb-3" id="imageTabs" role="tablist">
+                @foreach($customizableImages as $i => $img)
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link {{ $i === 0 ? 'active' : '' }}"
+                                id="tab-btn-{{ $img->id }}"
+                                data-bs-toggle="tab"
+                                data-bs-target="#tab-{{ $img->id }}"
+                                data-trigger-values='@json($img->trigger_values ?? [])'
+                                type="button">
+                            Image {{ $i + 1 }}
+                            <span class="customize-status status-empty ms-1" id="status-{{ $img->id }}">not customized</span>
+                        </button>
+                    </li>
+                @endforeach
+            </ul>
+
+            <!-- Shown when no tagged image matches the current option selection -->
+            <div id="noImageMatch" class="select-value-prompt mb-3" style="display:none;">
+                Select an option above to see the matching image to customize.
+            </div>
+
             <div class="tab-content" id="imageTabsContent">
 
                 @foreach($customizableImages as $i => $img)
                     <div class="tab-pane fade {{ $i === 0 ? 'show active' : '' }}"
                          id="tab-{{ $img->id }}"
+                         data-trigger-values='@json($img->trigger_values ?? [])'
                          role="tabpanel">
 
                         <div class="row g-4">
@@ -497,6 +512,103 @@ document.addEventListener("DOMContentLoaded", function () {
 
     /*
     |--------------------------------------------------------------------------
+    | DYNAMIC TAB FILTERING — AND logic across option categories.
+    | An image with trigger_values = { Size:["S"], Color:["Red"] } only shows
+    | when the customer's Size selection is "S" AND Color selection is "Red".
+    | An option category the image has NO ticks for is ignored (don't-care).
+    | An image with NO trigger_values at all (empty object) always shows.
+    |--------------------------------------------------------------------------
+    */
+
+    function getSelectedOptionValuesByName() {
+        const selected = {}; // { 'Size': 'M', 'Color': 'Red', 'Position': 'front' }
+        document.querySelectorAll('.option-trigger-select').forEach(function (select) {
+            // name="options[Size]" -> extract "Size"
+            const match = select.name.match(/^options\[(.+)\]$/);
+            if (match && select.value) {
+                selected[match[1]] = select.value;
+            }
+        });
+        return selected;
+    }
+
+    function imageMatches(triggers, selected) {
+        const optionNames = Object.keys(triggers || {});
+
+        // Untagged image (no option categories set at all) — always show
+        if (optionNames.length === 0) {
+            return true;
+        }
+
+        // Every tagged option category must have its selected value in the ticked list
+        return optionNames.every(function (optName) {
+            const allowedValues = triggers[optName] || [];
+            if (allowedValues.length === 0) {
+                return true; // this category has no ticks — don't-care
+            }
+            const selectedVal = selected[optName];
+            return selectedVal && allowedValues.includes(selectedVal);
+        });
+    }
+
+    function applyImageFilter() {
+        const selected = getSelectedOptionValuesByName();
+        const tabButtons = document.querySelectorAll('#imageTabs .nav-link');
+        const noMatchBox = document.getElementById('noImageMatch');
+
+        let firstVisibleBtn = null;
+        let visibleCount = 0;
+
+        tabButtons.forEach(function (btn) {
+            let triggers = {};
+            try {
+                triggers = JSON.parse(btn.dataset.triggerValues || '{}');
+            } catch (e) {}
+
+            const matches = imageMatches(triggers, selected);
+
+            const li = btn.closest('li');
+            li.style.display = matches ? '' : 'none';
+
+            if (matches) {
+                visibleCount++;
+                if (!firstVisibleBtn) {
+                    firstVisibleBtn = btn;
+                }
+            }
+        });
+
+        // If the currently active tab got hidden, switch to the first visible one
+        const activeBtn = document.querySelector('#imageTabs .nav-link.active');
+        const activeIsHidden = activeBtn && activeBtn.closest('li').style.display === 'none';
+
+        if (activeIsHidden && firstVisibleBtn) {
+            new bootstrap.Tab(firstVisibleBtn).show();
+        }
+
+        // Show a friendly prompt if nothing matches yet
+        const tabsWrapper = document.getElementById('imageTabs');
+        const tabContent = document.getElementById('imageTabsContent');
+
+        if (visibleCount === 0) {
+            noMatchBox.style.display = '';
+            tabsWrapper.style.display = 'none';
+            tabContent.style.display = 'none';
+        } else {
+            noMatchBox.style.display = 'none';
+            tabsWrapper.style.display = '';
+            tabContent.style.display = '';
+        }
+    }
+
+    document.querySelectorAll('.option-trigger-select').forEach(function (select) {
+        select.addEventListener('change', applyImageFilter);
+    });
+
+    applyImageFilter(); // run once on load (handles old() pre-selected values)
+
+    /*
+    |--------------------------------------------------------------------------
     | SAVE ALL — export every canvas that has a logo placed
     |--------------------------------------------------------------------------
     */
@@ -516,6 +628,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
             // Skip images the user never placed a logo on
             if (!state.logoObject) {
+                return;
+            }
+
+            // Skip images that are currently hidden by the option filter
+            const btn = document.getElementById('tab-btn-' + imgId);
+            if (btn && btn.closest('li').style.display === 'none') {
                 return;
             }
 

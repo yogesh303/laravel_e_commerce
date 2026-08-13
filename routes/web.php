@@ -8,9 +8,8 @@ use Illuminate\Support\Facades\Mail;
 use App\Http\Controllers\CategoryController;
 
 
-Route::get('/', function () {
-    return view('welcome');
-});
+// Default landing page — show the product catalog to everyone (guest or logged-in)
+Route::get('/', [Products::class, 'products_card'])->name('home');
 
 Route::get('/login', function () {
     return view('login');
@@ -37,12 +36,14 @@ Route::middleware(['auth','admin'])->group(function () {
     Route::delete('/subcategories/{id}', [CategoryController::class, 'destroySubcategory']);
 });
 
+// Public: anyone (guest or logged-in) can browse products and view product details
+Route::get('/products', [Products::class, 'products_card'])->name('products.index');
 Route::get('/product/{id}', [Products::class, 'productDetails'])->name('product.details');
-Route::get('/customize/{id}', [CartController::class, 'customize'])->name('product.customize');
-Route::post('/customize/{id}/save', [CartController::class, 'saveCustomization'])->name('product.customize.save');
 
+// Customizing a product still needs an account (it saves to the user's cart)
 Route::middleware('auth')->group(function () {
-    Route::get('/products',[Products::class,'products_card']);
+    Route::get('/customize/{id}', [CartController::class, 'customize'])->name('product.customize');
+    Route::post('/customize/{id}/save', [CartController::class, 'saveCustomization'])->name('product.customize.save');
 });
 
 
@@ -59,14 +60,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/checkout', [CartController::class, 'checkout']);
     Route::get('/dashboard', [UserControl::class, 'dashboard']);
     Route::get('/checkout/choose', [CartController::class, 'payment_choice'])->name('payment.choice');
+    Route::get('/orders/{id}/invoice', [CartController::class, 'invoice'])->name('order.invoice');
 });
 Route::post('/logout', [UserControl::class, 'logout'])->name('logout');
-
-Route::get('/product/{id}/customize', [CartController::class, 'customize'])
-    ->name('product.customize');
-
-Route::post('/product/{id}/customize', [CartController::class, 'saveCustomization'])
-    ->name('product.customize.save');
 
 Route::get('/order/{id}', [CartController::class, 'order_view'])
     ->name('order.view');

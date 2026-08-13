@@ -5,14 +5,11 @@
 
     <meta charset="UTF-8">
 
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>Order #{{ $order->id }}</title>
 
-    <link
-        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-        rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
 </head>
 
@@ -234,6 +231,11 @@
                             ₹ {{ number_format($item->price * $item->quantity, 2) }}
 
                         </p>
+                        <a href="{{ route('order.invoice', $order->id) }}"
+                        target="_blank"
+                        class="btn btn-outline-dark">
+                            🧾 Print Invoice
+                        </a>
 
                     </div>
 
@@ -248,6 +250,7 @@
                         </h5>
 
                     </div>
+                    
 
                 </div>
 
@@ -256,6 +259,7 @@
         </div>
 
     </div>
+    
 
     {{-- Shipping Address --}}
     <div class="card shadow-sm mb-4">
@@ -275,6 +279,18 @@
                 <div class="row">
 
                     <div class="col-md-6">
+                        @if($order->shipping_gst_no)
+                            <p class="mb-1">
+                                <strong>GST No:</strong>
+                                {{ $order->shipping_gst_no }}
+                            </p>
+                        @endif
+                        @if($order->shipping_company)
+                            <p class="mb-1">
+                                <strong>Company Name:</strong>
+                                {{ $order->shipping_company }}
+                            </p>
+                        @endif
 
                         <p class="mb-1">
                             <strong>Name:</strong>
