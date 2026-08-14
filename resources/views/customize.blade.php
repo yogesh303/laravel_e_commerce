@@ -120,14 +120,50 @@ body { background: #f5f6f8; }
                 <div class="row g-3 mb-3">
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Quantity</label>
-                        <select class="form-select" name="quantity_id" required>
+                        <select class="form-select" name="quantity_id" id="quantitySelect" required>
                             <option value="">Select Quantity</option>
                             @foreach($product->quantities as $q)
-                                <option value="{{ $q->id }}" {{ old('quantity_id') == $q->id ? 'selected' : '' }}>
+                                <option value="{{ $q->id }}" data-qty="{{ $q->quantity }}" {{ old('quantity_id') == $q->id ? 'selected' : '' }}>
                                     {{ $q->quantity }} pcs — ₹{{ number_format($q->price) }}
                                 </option>
                             @endforeach
                         </select>
+                    </div>
+                </div>
+            @endif
+
+            @if($product->is_cloth)
+                <div class="row g-3 mb-4">
+                    <div class="col-12">
+                        <div class="border rounded p-3 bg-light">
+                            <label class="form-label fw-bold mb-2">Size-wise Quantity</label>
+
+                            @php
+                                $sizes = ['S', 'M', 'L', 'XL', 'XXL'];
+                            @endphp
+
+                            <div class="row g-2">
+                                @foreach($sizes as $size)
+                                    <div class="col-4 col-md-2">
+                                        <label class="form-label small mb-1">{{ $size }}</label>
+                                        <input type="number"
+                                               name="sizes[{{ $size }}]"
+                                               class="form-control size-input"
+                                               min="0"
+                                               value="{{ old('sizes.' . $size, 0) }}">
+                                    </div>
+                                @endforeach
+                            </div>
+
+                            <div class="mt-2 small">
+                                Selected: <span id="sizeTotal">0</span> /
+                                Required: <span id="requiredTotal">0</span>
+                            </div>
+
+                            <div id="sizeMismatchWarning" class="text-danger small mt-1" style="display:none;">
+                                Quantity not match — size quantities must add up to the selected total quantity.
+                            </div>
+                        </div>
                     </div>
                 </div>
             @endif
@@ -287,6 +323,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const state = {
             canvas: canvas,
             logoObject: null,
+            logoDataUrl: null, // holds the original uploaded logo file
             zoom: 1
         };
 
@@ -379,9 +416,32 @@ document.addEventListener("DOMContentLoaded", function () {
 
             if (!file) return;
 
+            // ==========================================
+            // LOGO FILE SIZE VALIDATION
+            // Minimum: 1 MB
+            // Maximum: 4 MB
+            // ==========================================
+            const minSize = 1 * 1024 * 1024;
+            const maxSize = 4 * 1024 * 1024;
+
+            if (file.size < minSize) {
+                alert('Logo size must be at least 1 MB.');
+                this.value = '';
+                return;
+            }
+
+            if (file.size > maxSize) {
+                alert('Logo size must not exceed 4 MB.');
+                this.value = '';
+                return;
+            }
+
             const reader = new FileReader();
 
             reader.onload = function (event) {
+
+                // keep the original uploaded logo file separate from the composited canvas export
+                state.logoDataUrl = event.target.result;
 
                 fabric.Image.fromURL(event.target.result, function (logo) {
 
@@ -422,7 +482,9 @@ document.addEventListener("DOMContentLoaded", function () {
                     statusEl.classList.remove('status-empty');
                     statusEl.classList.add('status-done');
 
-                }, { crossOrigin: 'anonymous' });
+                }, {
+                    crossOrigin: 'anonymous'
+                });
             };
 
             reader.readAsDataURL(file);
@@ -444,6 +506,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             state.canvas.remove(state.logoObject);
             state.logoObject = null;
+            state.logoDataUrl = null;
             state.canvas.renderAll();
 
             const statusEl = document.getElementById('status-' + imgId);
@@ -513,17 +576,12 @@ document.addEventListener("DOMContentLoaded", function () {
     /*
     |--------------------------------------------------------------------------
     | DYNAMIC TAB FILTERING — AND logic across option categories.
-    | An image with trigger_values = { Size:["S"], Color:["Red"] } only shows
-    | when the customer's Size selection is "S" AND Color selection is "Red".
-    | An option category the image has NO ticks for is ignored (don't-care).
-    | An image with NO trigger_values at all (empty object) always shows.
     |--------------------------------------------------------------------------
     */
 
     function getSelectedOptionValuesByName() {
-        const selected = {}; // { 'Size': 'M', 'Color': 'Red', 'Position': 'front' }
+        const selected = {};
         document.querySelectorAll('.option-trigger-select').forEach(function (select) {
-            // name="options[Size]" -> extract "Size"
             const match = select.name.match(/^options\[(.+)\]$/);
             if (match && select.value) {
                 selected[match[1]] = select.value;
@@ -535,16 +593,14 @@ document.addEventListener("DOMContentLoaded", function () {
     function imageMatches(triggers, selected) {
         const optionNames = Object.keys(triggers || {});
 
-        // Untagged image (no option categories set at all) — always show
         if (optionNames.length === 0) {
             return true;
         }
 
-        // Every tagged option category must have its selected value in the ticked list
         return optionNames.every(function (optName) {
             const allowedValues = triggers[optName] || [];
             if (allowedValues.length === 0) {
-                return true; // this category has no ticks — don't-care
+                return true;
             }
             const selectedVal = selected[optName];
             return selectedVal && allowedValues.includes(selectedVal);
@@ -578,7 +634,6 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         });
 
-        // If the currently active tab got hidden, switch to the first visible one
         const activeBtn = document.querySelector('#imageTabs .nav-link.active');
         const activeIsHidden = activeBtn && activeBtn.closest('li').style.display === 'none';
 
@@ -586,7 +641,6 @@ document.addEventListener("DOMContentLoaded", function () {
             new bootstrap.Tab(firstVisibleBtn).show();
         }
 
-        // Show a friendly prompt if nothing matches yet
         const tabsWrapper = document.getElementById('imageTabs');
         const tabContent = document.getElementById('imageTabsContent');
 
@@ -605,11 +659,84 @@ document.addEventListener("DOMContentLoaded", function () {
         select.addEventListener('change', applyImageFilter);
     });
 
-    applyImageFilter(); // run once on load (handles old() pre-selected values)
+    applyImageFilter();
 
     /*
     |--------------------------------------------------------------------------
-    | SAVE ALL — export every canvas that has a logo placed
+    | Size-wise quantity total vs selected quantity tier
+    |--------------------------------------------------------------------------
+    */
+
+    const sizeInputs = document.querySelectorAll('.size-input');
+    const sizeTotalEl = document.getElementById('sizeTotal');
+    const requiredTotalEl = document.getElementById('requiredTotal');
+    const mismatchWarning = document.getElementById('sizeMismatchWarning');
+    const qtySelectEl = document.getElementById('quantitySelect');
+
+    function getRequiredQty() {
+        if (!qtySelectEl) return null; // product has no quantity tiers — nothing to match against
+
+        const opt = qtySelectEl.options[qtySelectEl.selectedIndex];
+
+        // Nothing selected yet (the blank "Select Quantity" option) — don't validate yet
+        if (!opt || !opt.value) return null;
+
+        return parseInt(opt.dataset.qty, 10) || 0;
+    }
+
+    function updateSizeTotals() {
+        if (!sizeInputs.length) return;
+
+        let total = 0;
+        sizeInputs.forEach(function (input) {
+            total += parseInt(input.value, 10) || 0;
+        });
+
+        const required = getRequiredQty();
+
+        sizeTotalEl.textContent = total;
+
+        if (required === null) {
+            // No tier chosen yet (or product has none) — just show the total, no mismatch
+            requiredTotalEl.textContent = '—';
+            mismatchWarning.style.display = 'none';
+        } else {
+            requiredTotalEl.textContent = required;
+            mismatchWarning.style.display = (total !== required) ? '' : 'none';
+        }
+    }
+
+    if (qtySelectEl) {
+        qtySelectEl.addEventListener('change', updateSizeTotals);
+    }
+
+    sizeInputs.forEach(function (input) {
+        input.addEventListener('input', updateSizeTotals);
+    });
+
+    updateSizeTotals();
+
+    function sizesMatchRequired() {
+        if (!sizeInputs.length) return true; // not a cloth product — nothing to check
+
+        let total = 0;
+        sizeInputs.forEach(function (input) {
+            total += parseInt(input.value, 10) || 0;
+        });
+
+        const required = getRequiredQty();
+
+        if (required === null) {
+            // No tier — just require at least one size filled in
+            return total >= 1;
+        }
+
+        return total === required;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SAVE ALL — export every canvas that has a logo placed, plus the raw logo
     |--------------------------------------------------------------------------
     */
 
@@ -617,8 +744,18 @@ document.addEventListener("DOMContentLoaded", function () {
 
         e.preventDefault();
 
+        if (!sizesMatchRequired()) {
+            mismatchWarning.style.display = '';
+            const required = getRequiredQty();
+            const msg = required === null
+                ? 'Please enter at least 1 in one of the sizes.'
+                : 'Quantity not match. Please make sure size quantities add up to ' + required + '.';
+            alert(msg);
+            return;
+        }
+
         const hiddenWrapper = document.getElementById('hiddenInputs');
-        hiddenWrapper.innerHTML = ''; // clear previous run
+        hiddenWrapper.innerHTML = '';
 
         let customizedCount = 0;
 
@@ -626,12 +763,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
             const state = customizers[imgId];
 
-            // Skip images the user never placed a logo on
             if (!state.logoObject) {
                 return;
             }
 
-            // Skip images that are currently hidden by the option filter
             const btn = document.getElementById('tab-btn-' + imgId);
             if (btn && btn.closest('li').style.display === 'none') {
                 return;
@@ -651,7 +786,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 multiplier: 2
             });
 
-            // Restore view
             state.canvas.setViewportTransform(savedViewportTransform);
             state.zoom = savedZoom;
             state.canvas.renderAll();
@@ -662,6 +796,15 @@ document.addEventListener("DOMContentLoaded", function () {
             input.value = finalImage;
             hiddenWrapper.appendChild(input);
 
+            // send the original uploaded logo file too, same key so it maps 1:1
+            if (state.logoDataUrl) {
+                const logoInput = document.createElement('input');
+                logoInput.type = 'hidden';
+                logoInput.name = 'logo_images[' + imgId + ']';
+                logoInput.value = state.logoDataUrl;
+                hiddenWrapper.appendChild(logoInput);
+            }
+
             customizedCount++;
         });
 
@@ -670,12 +813,14 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        // All good — submit for real now
         this.submit();
     });
 
 });
 </script>
+
+</body>
+</html>
 
 </body>
 </html>

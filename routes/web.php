@@ -61,6 +61,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [UserControl::class, 'dashboard']);
     Route::get('/checkout/choose', [CartController::class, 'payment_choice'])->name('payment.choice');
     Route::get('/orders/{id}/invoice', [CartController::class, 'invoice'])->name('order.invoice');
+    Route::post('/orders/{id}/invoice-number', [CartController::class, 'set_invoice_number'])
+    ->name('order.invoice.setnumber');
+    Route::post('/order-item/{id}/update', [CartController::class, 'update_order_item'])
+    ->name('order.item.update');
 });
 Route::post('/logout', [UserControl::class, 'logout'])->name('logout');
 

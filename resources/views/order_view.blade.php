@@ -11,14 +11,24 @@
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
+    <style>
+        .zoomable-img {
+            cursor: zoom-in;
+            transition: transform 0.15s ease;
+        }
+        .zoomable-img:hover {
+            transform: scale(1.03);
+        }
+    </style>
+
 </head>
 
 <body>
 
 <div class="container py-5">
 
-    {{-- Back Button --}}
-    <div class="mb-4">
+    {{-- Back Button + Invoice Number trigger --}}
+    <div class="mb-4 d-flex justify-content-between align-items-center">
 
         <a href="{{ url('/orders') }}"
            class="btn btn-secondary">
@@ -27,6 +37,74 @@
 
         </a>
 
+        <div>
+            @if($order->invoice_no)
+                <span class="badge bg-dark me-2 align-middle" style="font-size: 14px;">
+                    Invoice No: {{ $order->invoice_no }}
+                </span>
+            @endif
+
+            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#invoiceNoModal">
+                ✏️ {{ $order->invoice_no ? 'Edit' : 'Set' }} Invoice Number
+            </button>
+        </div>
+
+    </div>
+
+    {{-- Set / Edit Invoice Number Modal --}}
+    <div class="modal fade" id="invoiceNoModal" tabindex="-1" aria-labelledby="invoiceNoModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form action="{{ route('order.invoice.setnumber', $order->id) }}" method="POST">
+                    @csrf
+
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="invoiceNoModalLabel">Set Invoice Number</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+
+                    <div class="modal-body">
+                        <label class="form-label">Invoice Number</label>
+                        <input
+                            type="text"
+                            name="invoice_no"
+                            class="form-control"
+                            value="{{ $order->invoice_no }}"
+                            placeholder="e.g. INV-2026-0001"
+                            maxlength="50"
+                            required
+                            autofocus>
+                        <div class="form-text">This number will appear on the printed invoice for this order.</div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {{-- Full-Image Preview Modal (shared by every clickable image) --}}
+    <div class="modal fade" id="imagePreviewModal" tabindex="-1" aria-labelledby="imagePreviewLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content bg-dark">
+                <div class="modal-header border-0">
+                    <h6 class="modal-title text-white" id="imagePreviewLabel">Preview</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="imagePreviewSrc" src="" class="img-fluid rounded" style="max-height:75vh;">
+                </div>
+                <div class="modal-footer border-0 justify-content-center">
+                    <a id="imagePreviewDownload" href="" download class="btn btn-success">
+                        ⬇ Download Image
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
 
 
@@ -118,9 +196,10 @@
                                 @foreach($item->custom_images as $img)
                                     <img
                                         src="{{ asset('uploads/customizations/'.$img) }}"
-                                        class="img-fluid rounded border"
+                                        class="img-fluid rounded border zoomable-img"
                                         style="max-height:120px; max-width:120px; object-fit:contain;"
-                                        alt="Customized Product">
+                                        alt="Customized Product"
+                                        onclick="showImagePreview(this.src, 'Customized Product')">
                                 @endforeach
                             </div>
 
@@ -135,9 +214,10 @@
                             {{-- Customized Image (legacy single-image rows) --}}
                             <img
                                 src="{{ asset('uploads/customizations/'.$item->custom_image) }}"
-                                class="img-fluid rounded border"
+                                class="img-fluid rounded border zoomable-img"
                                 style="max-height:250px; object-fit:contain;"
-                                alt="Customized Product">
+                                alt="Customized Product"
+                                onclick="showImagePreview(this.src, 'Customized Product')">
 
                             <div class="mt-2">
                                 <span class="badge bg-primary">
@@ -150,9 +230,10 @@
                             {{-- Normal Product Image --}}
                             <img
                                 src="{{ asset('images/'.$item->product->image) }}"
-                                class="img-fluid rounded border"
+                                class="img-fluid rounded border zoomable-img"
                                 style="max-height:250px; object-fit:contain;"
-                                alt="{{ $item->product->name }}">
+                                alt="{{ $item->product->name }}"
+                                onclick="showImagePreview(this.src, '{{ $item->product->name }}')">
 
                         @else
 
@@ -160,6 +241,25 @@
                                 No Image
                             </div>
 
+                        @endif
+
+                        {{-- Uploaded Logo(s) --}}
+                        @if(!empty($item->logo_images) && count(array_filter($item->logo_images)))
+                            <div class="mt-3">
+                                <strong class="d-block mb-1 small text-muted">Uploaded Logo(s):</strong>
+                                <div class="d-flex flex-wrap gap-2 justify-content-center">
+                                    @foreach($item->logo_images as $logo)
+                                        @if($logo)
+                                            <img
+                                                src="{{ asset('uploads/logos/'.$logo) }}"
+                                                class="img-fluid rounded border zoomable-img"
+                                                style="max-height:90px; max-width:90px; object-fit:contain; background:#fff;"
+                                                alt="Uploaded Logo"
+                                                onclick="showImagePreview(this.src, 'Uploaded Logo')">
+                                        @endif
+                                    @endforeach
+                                </div>
+                            </div>
                         @endif
 
                     </div>
@@ -179,6 +279,16 @@
                                 @endforeach
                             </div>
                         @endif
+
+                        @if(!empty($item->size_breakdown) && count($item->size_breakdown))
+                            <div class="mb-2">
+                                <strong>Size-wise Quantity:</strong><br>
+                                @foreach($item->size_breakdown as $size => $qty)
+                                    <span class="badge bg-secondary me-1">{{ $size }}: {{ $qty }}</span>
+                                @endforeach
+                            </div>
+                        @endif
+
 
                         @if($item->custom_image || (!empty($item->custom_images) && count($item->custom_images)))
 
@@ -208,6 +318,13 @@
 
                             {{ $item->quantity }}
 
+                            @if($item->tier_qty)
+                                <span class="text-muted">
+                                    ({{ $item->quantity * $item->tier_qty }} pcs total —
+                                    {{ $item->tier_qty }} pcs/batch)
+                                </span>
+                            @endif
+
                         </p>
 
 
@@ -231,11 +348,6 @@
                             ₹ {{ number_format($item->price * $item->quantity, 2) }}
 
                         </p>
-                        <a href="{{ route('order.invoice', $order->id) }}"
-                        target="_blank"
-                        class="btn btn-outline-dark">
-                            🧾 Print Invoice
-                        </a>
 
                     </div>
 
@@ -250,7 +362,7 @@
                         </h5>
 
                     </div>
-                    
+
 
                 </div>
 
@@ -259,10 +371,19 @@
         </div>
 
     </div>
-    
+
+    {{-- Print Invoice --}}
+    <div class="text-end mt-3">
+        <a href="{{ route('order.invoice', $order->id) }}"
+           target="_blank"
+           class="btn btn-outline-dark">
+            🧾 Print Invoice
+        </a>
+    </div>
+
 
     {{-- Shipping Address --}}
-    <div class="card shadow-sm mb-4">
+    <div class="card shadow-sm mb-4 mt-3">
 
         <div class="card-header bg-dark text-white">
 
@@ -371,6 +492,27 @@
     </div>
 
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    function showImagePreview(src, label) {
+        document.getElementById('imagePreviewSrc').src = src;
+        document.getElementById('imagePreviewLabel').textContent = label || 'Preview';
+
+        const downloadBtn = document.getElementById('imagePreviewDownload');
+        downloadBtn.href = src;
+
+        // Give the downloaded file a sensible name based on the label
+        const safeName = (label || 'image').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        const extMatch = src.match(/\.(jpe?g|png|webp|gif)(\?.*)?$/i);
+        const ext = extMatch ? extMatch[1] : 'jpg';
+        downloadBtn.download = safeName + '.' + ext;
+
+        const modal = new bootstrap.Modal(document.getElementById('imagePreviewModal'));
+        modal.show();
+    }
+</script>
 
 </body>
 

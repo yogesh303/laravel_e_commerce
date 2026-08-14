@@ -30,6 +30,7 @@ class Products extends Controller
                 'image'           => $imageName,
                 'category_id'     => $request->category_id,
                 'subcategory_id'  => $request->subcategory_id,
+                'is_cloth'        => $request->boolean('is_cloth'),
             ]);
 
             $this->saveGalleryImages($request, $product);
@@ -99,6 +100,7 @@ class Products extends Controller
             $product->name        = $request->name;
             $product->price       = $request->price;
             $product->description = $request->description;
+            $product->is_cloth = $request->boolean('is_cloth');
 
             // Replace main image
             if ($request->hasFile('image')) {

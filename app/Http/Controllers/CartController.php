@@ -14,7 +14,6 @@ use App\Mail\TestMail;
 use Illuminate\Support\Facades\Mail;
 use Stripe\Stripe;
 use Stripe\Checkout\Session;
-use App\Mail\CustomizationMail;
 use Razorpay\Api\Api;
 
 class CartController extends Controller
@@ -36,12 +35,60 @@ class CartController extends Controller
 
         $selectedOptions = $request->filled('options') ? $request->options : null;
 
-        // Resolve selected quantity tier (if the product has any)
         $tier = null;
         if ($request->filled('quantity_id')) {
             $tier = \App\Models\ProductQuantity::where('id', $request->quantity_id)
                 ->where('product_id', $request->product_id)
                 ->first();
+        }
+
+        // Validate size breakdown for cloth products
+        $sizeBreakdown = null;
+        $product = \App\Models\products::find($request->product_id);
+
+        if ($product && $product->is_cloth) {
+            $request->validate([
+                'sizes' => 'required|array',
+            ]);
+
+            $sizes = collect($request->sizes)->map(fn ($v) => (int) $v);
+            $totalSizes = $sizes->sum();
+
+            if ($tier) {
+                // A quantity tier was chosen — sizes must add up exactly to it
+                $requiredQty = (int) $tier->quantity;
+
+                if ($totalSizes !== $requiredQty) {
+                    return redirect()->back()
+                        ->withInput()
+                        ->with('error', 'Quantity not match. Size quantities must add up to ' . $requiredQty . '.');
+                }
+            } else {
+                // No tiers on this product — just require at least one size filled in
+                if ($totalSizes < 1) {
+                    return redirect()->back()
+                        ->withInput()
+                        ->with('error', 'Please enter at least 1 in one of the sizes.');
+                }
+            }
+
+            $sizeBreakdown = $sizes->filter(fn ($v) => $v > 0)->toArray();
+        }
+
+        if ($sizeBreakdown) {
+            // Cloth items with a size split are always their own cart row
+            CartItem::create([
+                'cart_id'             => $cart->id,
+                'product_id'          => $request->product_id,
+                'quantity'            => 1,
+                'selected_options'    => $selectedOptions,
+                'product_quantity_id' => $tier->id ?? null,
+                'tier_qty'            => $tier->quantity ?? null,
+                'tier_price'          => $tier->price ?? null,
+                'size_breakdown'      => $sizeBreakdown,
+            ]);
+
+            return redirect()->back()->with('success', 'Product added to cart');
         }
 
         $existingItem = CartItem::where('cart_id', $cart->id)
@@ -125,9 +172,9 @@ class CartController extends Controller
      */
     private function deleteCustomImages(CartItem $item)
     {
-        $folder = public_path('uploads/customizations');
+        $folder     = public_path('uploads/customizations');
+        $logoFolder = public_path('uploads/logos');
 
-        // Multi-image rows (front, back, etc.)
         if (!empty($item->custom_images) && is_array($item->custom_images)) {
             foreach ($item->custom_images as $img) {
                 $path = $folder . '/' . $img;
@@ -137,11 +184,21 @@ class CartController extends Controller
             }
         }
 
-        // Legacy single-image rows
         if (!empty($item->custom_image)) {
             $path = $folder . '/' . $item->custom_image;
             if (file_exists($path)) {
                 unlink($path);
+            }
+        }
+
+        // NEW — remove saved logo files
+        if (!empty($item->logo_images) && is_array($item->logo_images)) {
+            foreach ($item->logo_images as $logo) {
+                if (!$logo) continue;
+                $path = $logoFolder . '/' . $logo;
+                if (file_exists($path)) {
+                    unlink($path);
+                }
             }
         }
     }
@@ -267,15 +324,53 @@ class CartController extends Controller
             }
         }
 
+        // Validate size breakdown for cloth products
+        $sizeBreakdown = null;
+
+        if ($product->is_cloth) {
+            $request->validate([
+                'sizes' => 'required|array',
+            ]);
+
+            $sizes = collect($request->sizes)->map(fn ($v) => (int) $v);
+            $totalSizes = $sizes->sum();
+
+            if ($tier) {
+                // A quantity tier was chosen — sizes must add up exactly to it
+                $requiredQty = (int) $tier->quantity;
+
+                if ($totalSizes !== $requiredQty) {
+                    return redirect()->back()
+                        ->withInput()
+                        ->with('error', 'Quantity not match. Size quantities must add up to ' . $requiredQty . '.');
+                }
+            } else {
+                // No tiers on this product — just require at least one size filled in
+                if ($totalSizes < 1) {
+                    return redirect()->back()
+                        ->withInput()
+                        ->with('error', 'Please enter at least 1 in one of the sizes.');
+                }
+            }
+
+            $sizeBreakdown = $sizes->filter(fn ($v) => $v > 0)->toArray();
+        }
+
         $cart = Cart::firstOrCreate(['user_id' => $user->id]);
 
-        $folder = public_path('uploads/customizations');
+        $folder     = public_path('uploads/customizations');
+        $logoFolder = public_path('uploads/logos');
 
         if (!file_exists($folder)) {
             mkdir($folder, 0755, true);
         }
 
-        $savedFiles = [];
+        if (!file_exists($logoFolder)) {
+            mkdir($logoFolder, 0755, true);
+        }
+
+        $savedFiles     = [];
+        $savedLogoFiles = []; // stays index-aligned with $savedFiles
 
         foreach ($request->custom_images as $imageId => $imageData) {
 
@@ -301,6 +396,40 @@ class CartController extends Controller
             file_put_contents($folder . '/' . $filename, $data);
 
             $savedFiles[] = $filename;
+
+            /*
+            |--------------------------------------------------------------------------
+            | Save the original uploaded logo file for this same image slot (if sent)
+            |--------------------------------------------------------------------------
+            */
+
+            $logoFilename = null;
+
+            if ($request->filled("logo_images.$imageId")) {
+
+                $logoData = $request->input("logo_images.$imageId");
+
+                if (preg_match('/^data:image\/(\w+);base64,/', $logoData, $logoMatches)) {
+
+                    $rawLogo = substr($logoData, strpos($logoData, ',') + 1);
+                    $rawLogo = base64_decode($rawLogo);
+
+                    if ($rawLogo !== false) {
+
+                        $logoExt = strtolower($logoMatches[1]);
+
+                        if ($logoExt === 'jpeg') {
+                            $logoExt = 'jpg';
+                        }
+
+                        $logoFilename = 'logo_' . time() . '_' . uniqid() . '.' . $logoExt;
+
+                        file_put_contents($logoFolder . '/' . $logoFilename, $rawLogo);
+                    }
+                }
+            }
+
+            $savedLogoFiles[] = $logoFilename; // null if this slot had no logo — keeps indices matched
         }
 
         if (empty($savedFiles)) {
@@ -322,17 +451,13 @@ class CartController extends Controller
             'quantity'            => 1,
             'custom_image'        => $savedFiles[0],
             'custom_images'       => $savedFiles,
+            'logo_images'         => $savedLogoFiles,
             'selected_options'    => $selectedOptions,
             'product_quantity_id' => $tier->id ?? null,
             'tier_qty'            => $tier->quantity ?? null,
             'tier_price'          => $tier->price ?? null,
+            'size_breakdown'      => $sizeBreakdown,
         ]);
-
-        try {
-            Mail::to($user->email)->send(new CustomizationMail($product, $savedFiles));
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Customization mail failed: ' . $e->getMessage());
-        }
 
         return redirect('/cart')
             ->with('success', count($savedFiles) . ' customized image(s) added to cart!');
@@ -530,26 +655,30 @@ public function order($session = null)
 
             $product = $item->product;
 
-            // Use the tier price (per batch) if this item has one,
-            // otherwise fall back to the plain product price.
             $unitPrice = $item->tier_price ?? $product->price;
             $total = $unitPrice * $item->quantity;
             $grandTotal += $total;
+
+            // Total pieces for this line (e.g. tier_qty 10 * quantity 1 = 10)
+            $orderQuantity = $item->tier_qty
+                ? $item->tier_qty * $item->quantity
+                : $item->quantity;
 
             OrderItem::create([
                 'order_id'             => $order->id,
                 'product_id'           => $product->id,
                 'quantity'             => $item->quantity,
+                'order_quantity'       => $orderQuantity,          // e.g. 10
                 'price'                => $unitPrice,
                 'custom_image'         => $item->custom_image,
                 'custom_images'        => $item->custom_images,
+                'logo_images'          => $item->logo_images,   // ADD THIS
                 'selected_options'     => $item->selected_options,
                 'product_quantity_id'  => $item->product_quantity_id,
                 'tier_qty'             => $item->tier_qty,
                 'tier_price'           => $item->tier_price,
+                'size_breakdown'       => $item->size_breakdown,
             ]);
-
-            // (stock decrement removed — stock is no longer tracked)
         }
 
         $order->total_price = $grandTotal;
@@ -575,6 +704,7 @@ public function order($session = null)
         dd($e->getMessage());
     }
 }
+
 public function order_list()
 {
     $user = Auth::user();
@@ -722,21 +852,20 @@ public function invoice($id)
 
     $gstRate = 18; // %
 
-    // Per-item GST breakup (item price is assumed GST-inclusive)
     $items = $order->items->map(function ($item) use ($gstRate) {
-        $lineTotal   = $item->price * $item->quantity;
-        $taxable     = $lineTotal / (1 + $gstRate / 100);
-        $gstAmount   = $lineTotal - $taxable;
+        $lineTotal = $item->price * $item->quantity;
+        $taxable   = $lineTotal / (1 + $gstRate / 100);
+        $gstAmount = $lineTotal - $taxable;
 
         return (object) [
-            'name'        => $item->product->name ?? 'Product Deleted',
-            'quantity'    => $item->quantity,
-            'price'       => $item->price,
-            'line_total'  => $lineTotal,
-            'taxable'     => $taxable,
-            'gst_amount'  => $gstAmount,
-            'cgst'        => $gstAmount / 2,
-            'sgst'        => $gstAmount / 2,
+            'name'       => $item->product->name ?? 'Product Deleted',
+            'quantity'   => $item->quantity,
+            'price'      => $item->price,
+            'line_total' => $lineTotal,
+            'taxable'    => $taxable,
+            'gst_amount' => $gstAmount,
+            'cgst'       => $gstAmount / 2,
+            'sgst'       => $gstAmount / 2,
         ];
     });
 
@@ -745,6 +874,9 @@ public function invoice($id)
     $gstTotal     = $grandTotal - $taxableTotal;
     $cgstTotal    = $gstTotal / 2;
     $sgstTotal    = $gstTotal / 2;
+
+    // Use the manually-set invoice number if there is one, otherwise auto-generate
+    $invoiceNo = $order->invoice_no ?: ('INV-' . str_pad($order->id, 6, '0', STR_PAD_LEFT));
 
     return view('invoice', [
         'order'        => $order,
@@ -755,6 +887,30 @@ public function invoice($id)
         'cgstTotal'    => $cgstTotal,
         'sgstTotal'    => $sgstTotal,
         'grandTotal'   => $grandTotal,
+        'invoiceNo'    => $invoiceNo,
     ]);
+}
+public function set_invoice_number(Request $request, $id)
+{
+    $user = Auth::user();
+
+    if (!$user) {
+        return redirect('/login');
+    }
+
+    $order = Order::findOrFail($id);
+
+    if ($user->role !== 'admin' && $order->user_id != $user->id) {
+        abort(403);
+    }
+
+    $request->validate([
+        'invoice_no' => 'required|string|max:50',
+    ]);
+
+    $order->invoice_no = $request->invoice_no;
+    $order->save();
+
+    return redirect()->back()->with('success', 'Invoice number saved');
 }
 }

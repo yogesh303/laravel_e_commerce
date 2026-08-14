@@ -87,7 +87,7 @@
             </p>
         </div>
         <div class="col-6 text-end">
-            <p class="mb-1"><strong>Invoice No:</strong> INV-{{ str_pad($order->id, 6, '0', STR_PAD_LEFT) }}</p>
+            <p class="mb-1"><strong>Invoice No:</strong> {{ $invoiceNo }}</p>
             <p class="mb-1"><strong>Order Date:</strong> {{ $order->created_at->format('d-m-Y') }}</p>
             <p class="mb-1"><strong>Status:</strong> {{ ucfirst($order->status) }}</p>
         </div>

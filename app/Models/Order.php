@@ -14,7 +14,7 @@ class Order extends Model
         'user_id', 'status', 'total_price',
         'shipping_name', 'shipping_phone', 'shipping_company',
         'shipping_address_line1', 'shipping_address_line2',
-        'shipping_city', 'shipping_state', 'shipping_pincode', 'shipping_country', 'shipping_gst_no'
+        'shipping_city', 'shipping_state', 'shipping_pincode', 'shipping_country', 'shipping_gst_no',
     ];
 
     public function items(){

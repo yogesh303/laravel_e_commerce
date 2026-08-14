@@ -17,6 +17,11 @@ class products extends Model
         'image',
         'category_id',
         'subcategory_id',
+        'is_cloth',
+    ];
+
+    protected $casts = [
+        'is_cloth' => 'boolean',
     ];
 
     public function cartItems()

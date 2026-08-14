@@ -13,15 +13,19 @@ class OrderItem extends Model
         'price',
         'custom_image',
         'custom_images',
+        'logo_images',
         'selected_options',
         'product_quantity_id',   // ← was missing
         'tier_qty',               // ← was missing
         'tier_price',  
+        'size_breakdown',
     ];
 
     protected $casts = [
         'custom_images'    => 'array',
+        'logo_images' => 'array',
         'selected_options' => 'array',
+        'size_breakdown'   => 'array',
     ];
 
     public function product()

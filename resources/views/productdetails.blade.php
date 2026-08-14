@@ -77,6 +77,38 @@
                         </div>
                     @endif
 
+                    @if($product->is_cloth)
+                        <div class="mb-3 border rounded p-3 bg-light">
+                            <label class="form-label fw-bold mb-2">Size-wise Quantity</label>
+
+                            @php
+                                $sizes = ['S', 'M', 'L', 'XL', 'XXL'];
+                            @endphp
+
+                            <div class="row g-2">
+                                @foreach($sizes as $size)
+                                    <div class="col-4 col-md-2">
+                                        <label class="form-label small mb-1">{{ $size }}</label>
+                                        <input type="number"
+                                               name="sizes[{{ $size }}]"
+                                               class="form-control size-input"
+                                               min="0"
+                                               value="0">
+                                    </div>
+                                @endforeach
+                            </div>
+
+                            <div class="mt-2 small">
+                                Selected: <span id="sizeTotal">0</span> /
+                                Required: <span id="requiredTotal">0</span>
+                            </div>
+
+                            <div id="sizeMismatchWarning" class="text-danger small mt-1" style="display:none;">
+                                Quantity not match — size quantities must add up to the selected total quantity.
+                            </div>
+                        </div>
+                    @endif
+
                     @if($product->options->count())
                         @foreach($product->options as $option)
                             <div class="mb-3">
@@ -116,15 +148,88 @@
 document.addEventListener('DOMContentLoaded', function () {
     const qtySelect = document.getElementById('quantitySelect');
     const priceEl = document.getElementById('displayPrice');
+    const sizeInputs = document.querySelectorAll('.size-input');
+    const sizeTotalEl = document.getElementById('sizeTotal');
+    const requiredTotalEl = document.getElementById('requiredTotal');
+    const mismatchWarning = document.getElementById('sizeMismatchWarning');
+    const form = document.getElementById('addToCartForm');
+
+    function getRequiredQty() {
+        if (!qtySelect) return null; // no tiers on this product — nothing to match against
+        const opt = qtySelect.options[qtySelect.selectedIndex];
+        return parseInt(opt.dataset.qty, 10) || 0;
+    }
+
+    function updatePrice() {
+        if (!qtySelect) return;
+        const opt = qtySelect.options[qtySelect.selectedIndex];
+        const price = parseFloat(opt.dataset.price);
+        priceEl.textContent = '₹ ' + price.toLocaleString('en-IN');
+    }
+
+    function updateSizeTotals() {
+    if (!sizeInputs.length) return;
+
+    let total = 0;
+    sizeInputs.forEach(function (input) {
+        total += parseInt(input.value, 10) || 0;
+    });
+
+    const required = getRequiredQty();
+
+    sizeTotalEl.textContent = total;
+
+    if (required === null) {
+        // No quantity tiers — just show what they've entered, no "required" target
+        requiredTotalEl.textContent = total;
+            mismatchWarning.style.display = 'none';
+        } else {
+            requiredTotalEl.textContent = required;
+            mismatchWarning.style.display = (total !== required) ? '' : 'none';
+        }
+    }
 
     if (qtySelect) {
-        function updatePrice() {
-            const opt = qtySelect.options[qtySelect.selectedIndex];
-            const price = parseFloat(opt.dataset.price);
-            priceEl.textContent = '₹ ' + price.toLocaleString('en-IN');
-        }
-        qtySelect.addEventListener('change', updatePrice);
-        updatePrice(); // set correct price for the pre-selected (first) tier on load
+        qtySelect.addEventListener('change', function () {
+            updatePrice();
+            updateSizeTotals();
+        });
+        updatePrice();
+    }
+
+    sizeInputs.forEach(function (input) {
+        input.addEventListener('input', updateSizeTotals);
+    });
+
+    updateSizeTotals(); // initial state on load
+
+    // Block submission client-side if sizes don't add up (server also re-checks this)
+    if (form && sizeInputs.length) {
+        form.addEventListener('submit', function (e) {
+            let total = 0;
+            sizeInputs.forEach(function (input) {
+                total += parseInt(input.value, 10) || 0;
+            });
+
+            const required = getRequiredQty();
+
+            if (required === null) {
+                // No tiers — just require at least one item across sizes
+                if (total < 1) {
+                    e.preventDefault();
+                    mismatchWarning.style.display = '';
+                    mismatchWarning.textContent = 'Please enter at least 1 in one of the sizes.';
+                    alert('Please enter at least 1 in one of the sizes.');
+                }
+                return;
+            }
+
+            if (total !== required) {
+                e.preventDefault();
+                mismatchWarning.style.display = '';
+                alert('Quantity not match. Size quantities must add up to ' + required + '.');
+            }
+        });
     }
 });
 </script>

@@ -13,14 +13,19 @@ class CartItem extends Model
         'selected_options',
         'custom_image',
         'custom_images',
+        'logo_images',
         'product_quantity_id',
         'tier_qty',
         'tier_price',
+        'size_breakdown',
+        'logo_images',
     ];
 
     protected $casts = [
         'custom_images'    => 'array',
+        'logo_images' => 'array',
         'selected_options' => 'array',
+        'size_breakdown'    => 'array',
     ];
     public function tier()
     {

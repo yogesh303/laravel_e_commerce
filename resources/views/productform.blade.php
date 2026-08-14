@@ -97,6 +97,28 @@
                     <div class="form-text">e.g. Quantity 10 → ₹450, Quantity 20 → ₹850, Quantity 25 → ₹1000. Price auto-fills based on unit price × quantity, but you can edit it.</div>
                 </div>
 
+                {{-- Cloth Product --}}
+                <div class="mb-4">
+                    <div class="form-check">
+                        <input
+                            type="checkbox"
+                            name="is_cloth"
+                            id="is_cloth"
+                            value="1"
+                            class="form-check-input"
+                            {{ isset($products) && $products->is_cloth ? 'checked' : '' }}
+                        >
+
+                        <label class="form-check-label fw-bold" for="is_cloth">
+                            This is a Cloth Product
+                        </label>
+                    </div>
+
+                    <div class="form-text">
+                        Enable this if this product is a cloth/t-shirt/shirt product.
+                    </div>
+                </div>
+
                 <!-- Main Image -->
                 <div class="mb-4">
                     <label class="form-label">Main Product Image</label>

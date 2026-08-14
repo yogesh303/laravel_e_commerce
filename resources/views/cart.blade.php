@@ -78,6 +78,14 @@
                     @else
                         <span class="text-muted">—</span>
                     @endif
+
+                    @if(!empty($item->size_breakdown) && count($item->size_breakdown))
+                        <div class="mt-1">
+                            @foreach($item->size_breakdown as $size => $qty)
+                                <span class="badge bg-light text-dark border me-1">{{ $size }}: {{ $qty }}</span>
+                            @endforeach
+                        </div>
+                    @endif
                 </td>
 
                 <td>
@@ -90,30 +98,57 @@
                 </td>
 
                 <td>
-                    <div class="d-flex justify-content-center align-items-center">
+                    @if(!empty($item->size_breakdown) && count($item->size_breakdown))
 
-                        <form action="{{ url('add_quantity') }}" method="POST">
-                            @csrf
-                            <input type="hidden" name="cart_item_id" value="{{ $item->id }}">
-                            <input type="hidden" name="action" value="minus">
-                            <button class="btn btn-danger btn-sm">-</button>
-                        </form>
+                        {{-- Cloth item: quantity is locked in by the size breakdown.
+                             No +/- (sizes control the count), but the customer can still
+                             remove the whole row. quantity is always 1 for these rows, so
+                             the existing "minus" action already deletes it entirely. --}}
+                        <div class="d-flex flex-column align-items-center">
+                            <span class="fw-bold mb-1">
+                                {{ $item->quantity }}
+                                @if($item->tier_qty)
+                                    <div><small class="text-muted">{{ $item->quantity * $item->tier_qty }} pcs total</small></div>
+                                @endif
+                            </span>
 
-                        <span class="mx-2">
-                            {{ $item->quantity }}
-                            @if($item->tier_qty)
-                                <div><small class="text-muted">{{ $item->quantity * $item->tier_qty }} pcs total</small></div>
-                            @endif
-                        </span>
+                            <form action="{{ url('add_quantity') }}" method="POST"
+                                  onsubmit="return confirm('Remove this item from your cart?');">
+                                @csrf
+                                <input type="hidden" name="cart_item_id" value="{{ $item->id }}">
+                                <input type="hidden" name="action" value="minus">
+                                <button class="btn btn-outline-danger btn-sm">🗑 Remove</button>
+                            </form>
+                        </div>
 
-                        <form action="{{ url('add_quantity') }}" method="POST">
-                            @csrf
-                            <input type="hidden" name="cart_item_id" value="{{ $item->id }}">
-                            <input type="hidden" name="action" value="add">
-                            <button class="btn btn-success btn-sm">+</button>
-                        </form>
+                    @else
 
-                    </div>
+                        <div class="d-flex justify-content-center align-items-center">
+
+                            <form action="{{ url('add_quantity') }}" method="POST">
+                                @csrf
+                                <input type="hidden" name="cart_item_id" value="{{ $item->id }}">
+                                <input type="hidden" name="action" value="minus">
+                                <button class="btn btn-danger btn-sm">-</button>
+                            </form>
+
+                            <span class="mx-2">
+                                {{ $item->quantity }}
+                                @if($item->tier_qty)
+                                    <div><small class="text-muted">{{ $item->quantity * $item->tier_qty }} pcs total</small></div>
+                                @endif
+                            </span>
+
+                            <form action="{{ url('add_quantity') }}" method="POST">
+                                @csrf
+                                <input type="hidden" name="cart_item_id" value="{{ $item->id }}">
+                                <input type="hidden" name="action" value="add">
+                                <button class="btn btn-success btn-sm">+</button>
+                            </form>
+
+                        </div>
+
+                    @endif
                 </td>
 
                 <td>₹ {{ number_format($total) }}</td>
