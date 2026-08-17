@@ -8,7 +8,7 @@ return new class extends Migration
     public function up()
     {
         Schema::table('cart_items', function (Blueprint $table) {
-            $table->json('selected_options')->nullable()->after('custom_image');
+            $table->json('selected_options')->nullable();
         });
     }
 

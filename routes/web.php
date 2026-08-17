@@ -44,6 +44,10 @@ Route::get('/product/{id}', [Products::class, 'productDetails'])->name('product.
 Route::middleware('auth')->group(function () {
     Route::get('/customize/{id}', [CartController::class, 'customize'])->name('product.customize');
     Route::post('/customize/{id}/save', [CartController::class, 'saveCustomization'])->name('product.customize.save');
+
+    Route::post('/cart/update-remarks', [CartController::class, 'update_remarks'])->name('cart.updateRemarks');
+    Route::post('/order-item/{id}/delete-files', [CartController::class, 'delete_order_item_files'])
+    ->name('orderitem.deleteFiles');
 });
 
 

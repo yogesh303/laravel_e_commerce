@@ -19,6 +19,7 @@ class CartItem extends Model
         'tier_price',
         'size_breakdown',
         'logo_images',
+        'remarks', 'additional_file',
     ];
 
     protected $casts = [

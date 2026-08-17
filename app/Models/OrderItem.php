@@ -19,6 +19,7 @@ class OrderItem extends Model
         'tier_qty',               // ← was missing
         'tier_price',  
         'size_breakdown',
+        'remarks', 'additional_file',
     ];
 
     protected $casts = [

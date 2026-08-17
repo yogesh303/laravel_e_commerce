@@ -123,7 +123,8 @@ body { background: #f5f6f8; }
                         <select class="form-select" name="quantity_id" id="quantitySelect" required>
                             <option value="">Select Quantity</option>
                             @foreach($product->quantities as $q)
-                                <option value="{{ $q->id }}" data-qty="{{ $q->quantity }}" {{ old('quantity_id') == $q->id ? 'selected' : '' }}>
+                                <option value="{{ $q->id }}" data-qty="{{ $q->quantity }}"
+                                    {{ (string) $prefill['quantity_id'] === (string) $q->id ? 'selected' : '' }}>
                                     {{ $q->quantity }} pcs — ₹{{ number_format($q->price) }}
                                 </option>
                             @endforeach
@@ -147,10 +148,10 @@ body { background: #f5f6f8; }
                                     <div class="col-4 col-md-2">
                                         <label class="form-label small mb-1">{{ $size }}</label>
                                         <input type="number"
-                                               name="sizes[{{ $size }}]"
-                                               class="form-control size-input"
-                                               min="0"
-                                               value="{{ old('sizes.' . $size, 0) }}">
+                                            name="sizes[{{ $size }}]"
+                                            class="form-control size-input"
+                                            min="0"
+                                            value="{{ $prefill['sizes'][$size] ?? 0 }}">
                                     </div>
                                 @endforeach
                             </div>
@@ -178,7 +179,7 @@ body { background: #f5f6f8; }
                                 <option value="">Select {{ $option->name }}</option>
                                 @foreach($option->values_array as $val)
                                     <option value="{{ $val }}"
-                                        {{ old('options.' . $option->name) === $val ? 'selected' : '' }}>
+                                        {{ ($prefill['options'][$option->name] ?? null) === $val ? 'selected' : '' }}>
                                         {{ $val }}
                                     </option>
                                 @endforeach

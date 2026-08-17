@@ -24,7 +24,12 @@
 </head>
 
 <body>
-
+@if(session('success'))
+    <div class="alert alert-success">{{ session('success') }}</div>
+@endif
+@if(session('error'))
+    <div class="alert alert-danger">{{ session('error') }}</div>
+@endif
 <div class="container py-5">
 
     {{-- Back Button + Invoice Number trigger --}}
@@ -260,6 +265,47 @@
                                     @endforeach
                                 </div>
                             </div>
+                        @endif
+
+                        {{-- Additional Uploaded File --}}
+                        @if(!empty($item->additional_file))
+                            <div class="mt-3">
+                                <strong class="d-block mb-1 small text-muted">Attached File:</strong>
+                                <a href="{{ asset('uploads/attachments/'.$item->additional_file) }}"
+                                   class="btn btn-sm btn-outline-success"
+                                   download
+                                   target="_blank">
+                                    ⬇ Download File
+                                </a>
+                            </div>
+                        @endif
+
+                        {{-- Remarks --}}
+                        @if(!empty($item->remarks))
+                            <div class="mt-3 text-start">
+                                <strong class="d-block mb-1 small text-muted">Remarks:</strong>
+                                <p class="small border rounded p-2 bg-light mb-0">{{ $item->remarks }}</p>
+                            </div>
+                        @endif
+
+                        {{-- Delete All Files/Images for this item --}}
+                        @php
+                            $hasFiles = $item->custom_image
+                                || !empty($item->custom_images)
+                                || !empty(array_filter((array) $item->logo_images))
+                                || !empty($item->additional_file);
+                        @endphp
+
+                        @if($hasFiles)
+                            <form action="{{ route('orderitem.deleteFiles', $item->id) }}"
+                                  method="POST"
+                                  class="mt-3">
+                                @csrf
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-danger delete-files-btn">
+                                    🗑 Delete All Files
+                                </button>
+                            </form>
                         @endif
 
                     </div>
@@ -512,6 +558,20 @@
         const modal = new bootstrap.Modal(document.getElementById('imagePreviewModal'));
         modal.show();
     }
+
+    // Delete-all-files confirmation, per order item
+    document.querySelectorAll('.delete-files-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const confirmed = confirm(
+                "Are you sure you want to delete ALL images, logos, and the attached file for this item?\n\n" +
+                "⚠️ Make sure you have already downloaded anything you need — this action cannot be undone."
+            );
+
+            if (confirmed) {
+                btn.closest('form').submit();
+            }
+        });
+    });
 </script>
 
 </body>

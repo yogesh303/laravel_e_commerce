@@ -165,7 +165,55 @@ class CartController extends Controller
 
         return redirect()->back();
     }
+    public function update_remarks(Request $request)
+    {
+        $user = Auth::user();
 
+        if (!$user) {
+            return redirect()->back()->with('error', 'Please login first');
+        }
+
+        $request->validate([
+            'cart_item_id' => 'required|exists:cart_items,id',
+            'remarks'       => 'nullable|string|max:2000',
+            'additional_file' => 'nullable|file|max:10240', // 10MB
+        ]);
+
+        $item = CartItem::where('id', $request->cart_item_id)
+            ->whereHas('cart', function ($q) use ($user) {
+                $q->where('user_id', $user->id);
+            })->first();
+
+        if (!$item) {
+            return redirect()->back()->with('error', 'Cart item not found');
+        }
+
+        $item->remarks = $request->remarks;
+
+        if ($request->hasFile('additional_file')) {
+
+            $folder = public_path('uploads/attachments');
+
+            if (!file_exists($folder)) {
+                mkdir($folder, 0755, true);
+            }
+
+            // remove old file if replacing
+            if ($item->additional_file && file_exists($folder . '/' . $item->additional_file)) {
+                unlink($folder . '/' . $item->additional_file);
+            }
+
+            $file = $request->file('additional_file');
+            $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $file->move($folder, $filename);
+
+            $item->additional_file = $filename;
+        }
+
+        $item->save();
+
+        return redirect()->back()->with('success', 'Remarks / file saved');
+    }
     /**
      * Delete any uploaded customization image files tied to a cart item
      * before the row itself is removed.
@@ -181,6 +229,12 @@ class CartController extends Controller
                 if (file_exists($path)) {
                     unlink($path);
                 }
+            }
+        }
+        if (!empty($item->additional_file)) {
+            $path = public_path('uploads/attachments') . '/' . $item->additional_file;
+            if (file_exists($path)) {
+                unlink($path);
             }
         }
 
@@ -243,7 +297,7 @@ class CartController extends Controller
         }
     }
 
-    public function customize($id)
+   public function customize(Request $request, $id)
     {
         $product = Products::with(['images', 'options', 'quantities'])->findOrFail($id);
 
@@ -254,7 +308,7 @@ class CartController extends Controller
                 (object) [
                     'id'             => 0,
                     'image'          => $product->image,
-                    'trigger_values' => [], // untagged = always shown
+                    'trigger_values' => [],
                 ],
             ]);
         }
@@ -264,9 +318,18 @@ class CartController extends Controller
                 ->with('error', 'This product has no customizable images.');
         }
 
+        // Prefer validation-failure old() input, then fall back to query params
+        // carried over from the product detail page
+        $prefill = [
+            'quantity_id' => old('quantity_id', $request->query('quantity_id')),
+            'options'     => old('options', $request->query('options', [])),
+            'sizes'       => old('sizes', $request->query('sizes', [])),
+        ];
+
         return view('customize', [
             'product'            => $product,
             'customizableImages' => $customizableImages,
+            'prefill'            => $prefill,
         ]);
     }
 
@@ -678,6 +741,8 @@ public function order($session = null)
                 'tier_qty'             => $item->tier_qty,
                 'tier_price'           => $item->tier_price,
                 'size_breakdown'       => $item->size_breakdown,
+                'remarks'              => $item->remarks,          // NEW
+                'additional_file'      => $item->additional_file,  // NEW
             ]);
         }
 
@@ -703,6 +768,72 @@ public function order($session = null)
         DB::rollBack();
         dd($e->getMessage());
     }
+}
+public function delete_order_item_files($id)
+{
+    $user = Auth::user();
+
+    if (!$user) {
+        return redirect('/login');
+    }
+
+    $item = OrderItem::with('order')->findOrFail($id);
+
+    // Only admin or the order owner can delete
+    if ($user->role !== 'admin' && $item->order->user_id != $user->id) {
+        abort(403);
+    }
+
+    $customFolder = public_path('uploads/customizations');
+    $logoFolder   = public_path('uploads/logos');
+    $attachFolder = public_path('uploads/attachments');
+
+    // Delete all customization images
+    if (!empty($item->custom_images) && is_array($item->custom_images)) {
+        foreach ($item->custom_images as $img) {
+            $path = $customFolder . '/' . $img;
+            if (file_exists($path)) {
+                unlink($path);
+            }
+        }
+    }
+
+    // Legacy single custom image
+    if (!empty($item->custom_image)) {
+        $path = $customFolder . '/' . $item->custom_image;
+        if (file_exists($path)) {
+            unlink($path);
+        }
+    }
+
+    // Delete all logo images
+    if (!empty($item->logo_images) && is_array($item->logo_images)) {
+        foreach ($item->logo_images as $logo) {
+            if (!$logo) continue;
+            $path = $logoFolder . '/' . $logo;
+            if (file_exists($path)) {
+                unlink($path);
+            }
+        }
+    }
+
+    // Delete additional attached file
+    if (!empty($item->additional_file)) {
+        $path = $attachFolder . '/' . $item->additional_file;
+        if (file_exists($path)) {
+            unlink($path);
+        }
+    }
+
+    // Clear DB references (order item itself stays intact)
+    $item->update([
+        'custom_image'     => null,
+        'custom_images'    => null,
+        'logo_images'      => null,
+        'additional_file'  => null,
+    ]);
+
+    return redirect()->back()->with('success', 'All files deleted for this item');
 }
 
 public function order_list()
