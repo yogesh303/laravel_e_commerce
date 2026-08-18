@@ -35,6 +35,9 @@ class CartController extends Controller
 
         $selectedOptions = $request->filled('options') ? $request->options : null;
 
+        // Quantity coming from the +/- stepper (defaults to 1 for every other flow)
+        $qty = max(1, (int) $request->input('quantity', 1));
+
         $tier = null;
         if ($request->filled('quantity_id')) {
             $tier = \App\Models\ProductQuantity::where('id', $request->quantity_id)
@@ -99,13 +102,13 @@ class CartController extends Controller
             ->first();
 
         if ($existingItem) {
-            $existingItem->quantity += 1;
+            $existingItem->quantity += $qty;
             $existingItem->save();
         } else {
             CartItem::create([
                 'cart_id'             => $cart->id,
                 'product_id'          => $request->product_id,
-                'quantity'            => 1,
+                'quantity'            => $qty,
                 'selected_options'    => $selectedOptions,
                 'product_quantity_id' => $tier->id ?? null,
                 'tier_qty'            => $tier->quantity ?? null,

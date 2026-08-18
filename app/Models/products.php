@@ -18,9 +18,11 @@ class products extends Model
         'category_id',
         'subcategory_id',
         'is_cloth',
+        'use_stepper',
     ];
 
     protected $casts = [
+        'use_stepper' => 'boolean',
         'is_cloth' => 'boolean',
     ];
 

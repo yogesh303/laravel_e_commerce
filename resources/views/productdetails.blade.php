@@ -89,9 +89,10 @@
                                 </option>
                             @endforeach
                         </select>
+                        <input type="hidden" id="qtyMultiplier" name="quantity" value="1">
                     @endif
 
-                    @if($product->is_cloth)
+                    @if(!$product->use_stepper && $product->is_cloth)
                         @php $sizes = ['S', 'M', 'L', 'XL', 'XXL']; @endphp
                         @foreach($sizes as $size)
                             <input type="number" class="size-input" name="sizes[{{ $size }}]" value="0">
@@ -119,17 +120,47 @@
                     @if($product->quantities->count())
                         <div class="mb-3">
                             <label class="form-label fw-bold">Quantity</label>
-                            <select class="form-select" name="quantity_id" id="quantitySelect" required>
-                                @foreach($product->quantities as $q)
-                                    <option value="{{ $q->id }}" data-price="{{ $q->price }}" data-qty="{{ $q->quantity }}">
-                                        {{ $q->quantity }} pcs — ₹{{ number_format($q->price) }}
-                                    </option>
-                                @endforeach
-                            </select>
+
+                            @if($product->use_stepper)
+
+                                {{-- Pick the base tier (usually just the minimum, e.g. 500),
+                                     then +/- multiplies it: 1x = 500, 2x = 1000, 3x = 1500 ... --}}
+                                <select class="form-select mb-2" name="quantity_id" id="quantitySelect" required>
+                                    @foreach($product->quantities as $q)
+                                        <option value="{{ $q->id }}" data-price="{{ $q->price }}" data-qty="{{ $q->quantity }}">
+                                            {{ $q->quantity }} pcs — ₹{{ number_format($q->price) }} (base)
+                                        </option>
+                                    @endforeach
+                                </select>
+
+                                <input type="hidden" name="quantity" id="qtyMultiplier" value="1">
+
+                                <div class="d-flex align-items-center" style="max-width:260px;">
+                                    <button type="button" class="btn btn-danger btn-sm" id="tierMinus">-</button>
+
+                                    <div class="mx-3 text-center flex-grow-1">
+                                        <div class="fw-bold" id="totalPcsDisplay">500 pcs</div>
+                                        <small class="text-muted" id="totalPriceDisplay"></small>
+                                    </div>
+
+                                    <button type="button" class="btn btn-success btn-sm" id="tierPlus">+</button>
+                                </div>
+
+                            @else
+
+                                <select class="form-select" name="quantity_id" id="quantitySelect" required>
+                                    @foreach($product->quantities as $q)
+                                        <option value="{{ $q->id }}" data-price="{{ $q->price }}" data-qty="{{ $q->quantity }}">
+                                            {{ $q->quantity }} pcs — ₹{{ number_format($q->price) }}
+                                        </option>
+                                    @endforeach
+                                </select>
+
+                            @endif
                         </div>
                     @endif
 
-                    @if($product->is_cloth)
+                    @if(!$product->use_stepper && $product->is_cloth)
                         <div class="mb-3 border rounded p-3 bg-light">
                             <label class="form-label fw-bold mb-2">Size-wise Quantity</label>
 
@@ -196,6 +227,67 @@ document.addEventListener('DOMContentLoaded', function () {
     const mismatchWarning = document.getElementById('sizeMismatchWarning');
     const form = document.getElementById('addToCartForm');
 
+    // --- Stepper: multiplies the selected tier (500 -> 1000 -> 1500 ...) ---
+    const tierMinus = document.getElementById('tierMinus');
+    const tierPlus  = document.getElementById('tierPlus');
+    const qtyMultiplierInput = document.getElementById('qtyMultiplier');
+    const totalPcsDisplay = document.getElementById('totalPcsDisplay');
+    const totalPriceDisplay = document.getElementById('totalPriceDisplay');
+
+    let multiplier = 1;
+
+    function getSelectedTier() {
+        if (!qtySelect) return null;
+        const opt = qtySelect.options[qtySelect.selectedIndex];
+        if (!opt) return null;
+        return {
+            qty: parseInt(opt.dataset.qty, 10) || 0,
+            price: parseFloat(opt.dataset.price) || 0
+        };
+    }
+
+    function updateStepperDisplay() {
+        if (!totalPcsDisplay || !qtyMultiplierInput) return;
+
+        const tier = getSelectedTier();
+        if (!tier) return;
+
+        const totalPcs = tier.qty * multiplier;
+        const totalPrice = tier.price * multiplier;
+
+        qtyMultiplierInput.value = multiplier;
+        totalPcsDisplay.textContent = totalPcs.toLocaleString('en-IN') + ' pcs';
+        if (totalPriceDisplay) {
+            totalPriceDisplay.textContent = '₹ ' + totalPrice.toLocaleString('en-IN');
+        }
+        if (priceEl) {
+            priceEl.textContent = '₹ ' + totalPrice.toLocaleString('en-IN');
+        }
+    }
+
+    if (tierMinus && tierPlus) {
+        tierMinus.addEventListener('click', function () {
+            if (multiplier > 1) {
+                multiplier -= 1;
+                updateStepperDisplay();
+            }
+        });
+        tierPlus.addEventListener('click', function () {
+            multiplier += 1;
+            updateStepperDisplay();
+        });
+
+        if (qtySelect) {
+            qtySelect.addEventListener('change', function () {
+                multiplier = 1; // reset multiplier when a different base tier is picked
+                updateStepperDisplay();
+            });
+        }
+
+        updateStepperDisplay(); // initial render
+    }
+
+    // --- Existing tier / size logic (unchanged, used by non-stepper products) ---
     function getRequiredQty() {
         if (!qtySelect) return null;
         const opt = qtySelect.options[qtySelect.selectedIndex];
@@ -203,7 +295,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function updatePrice() {
-        if (!qtySelect || !priceEl) return;
+        if (!qtySelect || !priceEl || tierMinus) return; // skip: stepper handles its own price display
         const opt = qtySelect.options[qtySelect.selectedIndex];
         const price = parseFloat(opt.dataset.price);
         priceEl.textContent = '₹ ' + price.toLocaleString('en-IN');
@@ -230,7 +322,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    if (qtySelect) {
+    if (qtySelect && !tierMinus) {
         qtySelect.addEventListener('change', function () {
             updatePrice();
             updateSizeTotals();
@@ -271,40 +363,6 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     }
-});
-
-document.addEventListener('DOMContentLoaded', function () {
-    const customizeLink = document.getElementById('customizeLink');
-    if (!customizeLink) return;
-
-    const baseUrl = customizeLink.getAttribute('href');
-
-    customizeLink.addEventListener('click', function (e) {
-        e.preventDefault();
-
-        const params = new URLSearchParams();
-
-        const qtySelect = document.getElementById('quantitySelect');
-        if (qtySelect && qtySelect.value) {
-            params.set('quantity_id', qtySelect.value);
-        }
-
-        document.querySelectorAll('.size-input').forEach(function (input) {
-            const match = input.name.match(/^sizes\[(.+)\]$/);
-            if (match) {
-                params.set('sizes[' + match[1] + ']', input.value || 0);
-            }
-        });
-
-        document.querySelectorAll('#addToCartForm select[name^="options["]').forEach(function (select) {
-            const match = select.name.match(/^options\[(.+)\]$/);
-            if (match && select.value) {
-                params.set('options[' + match[1] + ']', select.value);
-            }
-        });
-
-        window.location.href = baseUrl + '?' + params.toString();
-    });
 });
 </script>
 </body>

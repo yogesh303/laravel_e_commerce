@@ -31,6 +31,7 @@ class Products extends Controller
                 'category_id'     => $request->category_id,
                 'subcategory_id'  => $request->subcategory_id,
                 'is_cloth'        => $request->boolean('is_cloth'),
+                'use_stepper'     => $request->boolean('use_stepper'),
             ]);
 
             $this->saveGalleryImages($request, $product);
@@ -101,6 +102,7 @@ class Products extends Controller
             $product->price       = $request->price;
             $product->description = $request->description;
             $product->is_cloth = $request->boolean('is_cloth');
+            $product->use_stepper = $request->boolean('use_stepper');
 
             // Replace main image
             if ($request->hasFile('image')) {

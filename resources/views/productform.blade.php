@@ -118,6 +118,13 @@
                         Enable this if this product is a cloth/t-shirt/shirt product.
                     </div>
                 </div>
+                <div class="form-check mb-3">
+                    <input type="checkbox" class="form-check-input" id="use_stepper" name="use_stepper" value="1"
+                        {{ old('use_stepper', $products->use_stepper ?? false) ? 'checked' : '' }}>
+                    <label class="form-check-label" for="use_stepper">
+                        Use simple +/- quantity selector on product page (skip tier/size selection)
+                    </label>
+                </div>
 
                 <!-- Main Image -->
                 <div class="mb-4">
