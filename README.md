@@ -27,7 +27,7 @@ This project includes product management with dynamic options and pricing, live 
   <tr>
     <td><img src="screenshots/s1.png" width="250"/></td>
     <td><img src="screenshots/s2.png" width="250"/></td>
-    <td><img src="screenshots/s3.PNG" width="250"/></td>
+    <td><img src="screenshots/s3.png" width="250"/></td>
   </tr>
   <tr>
     <td><img src="screenshots/s11.png" width="250"/></td>
