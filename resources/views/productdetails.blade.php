@@ -123,8 +123,8 @@
 
                             @if($product->use_stepper)
 
-                                {{-- Pick the base tier (usually just the minimum, e.g. 500),
-                                     then +/- multiplies it: 1x = 500, 2x = 1000, 3x = 1500 ... --}}
+                                {{-- Pick the base tier, then +/- steps by THAT tier's own
+                                     quantity: base tier = 5 pcs -> click + -> 10 pcs -> 15 pcs ... --}}
                                 <select class="form-select mb-2" name="quantity_id" id="quantitySelect" required>
                                     @foreach($product->quantities as $q)
                                         <option value="{{ $q->id }}" data-price="{{ $q->price }}" data-qty="{{ $q->quantity }}">
@@ -139,12 +139,14 @@
                                     <button type="button" class="btn btn-danger btn-sm" id="tierMinus">-</button>
 
                                     <div class="mx-3 text-center flex-grow-1">
-                                        <div class="fw-bold" id="totalPcsDisplay">500 pcs</div>
+                                        <div class="fw-bold" id="totalPcsDisplay"></div>
                                         <small class="text-muted" id="totalPriceDisplay"></small>
                                     </div>
 
                                     <button type="button" class="btn btn-success btn-sm" id="tierPlus">+</button>
                                 </div>
+
+                                <div class="form-text mt-1" id="stepHint"></div>
 
                             @else
 
@@ -196,9 +198,15 @@
                         @foreach($product->options as $option)
                             <div class="mb-3">
                                 <label class="form-label fw-bold">{{ $option->name }}</label>
-                                <select class="form-select" name="options[{{ $option->name }}]" required>
+                                <select class="form-select option-select" name="options[{{ $option->name }}]" required>
                                     @foreach($option->values_array as $val)
-                                        <option value="{{ $val }}">{{ $val }}</option>
+                                        <option value="{{ $val }}"
+                                            data-extra="{{ $option->value_prices[$val] ?? 0 }}">
+                                            {{ $val }}
+                                            @if(!empty($option->value_prices[$val]))
+                                                (+₹{{ number_format($option->value_prices[$val]) }} / pc)
+                                            @endif
+                                        </option>
                                     @endforeach
                                 </select>
                             </div>
@@ -227,12 +235,28 @@ document.addEventListener('DOMContentLoaded', function () {
     const mismatchWarning = document.getElementById('sizeMismatchWarning');
     const form = document.getElementById('addToCartForm');
 
-    // --- Stepper: multiplies the selected tier (500 -> 1000 -> 1500 ...) ---
+    // --- Option value surcharges are PER PIECE (e.g. Size: A4 -> +₹25 per pc) ---
+    const optionSelects = document.querySelectorAll('.option-select');
+
+    function getOptionsExtraPerPiece() {
+        let extra = 0;
+        optionSelects.forEach(function (sel) {
+            const opt = sel.options[sel.selectedIndex];
+            if (opt) {
+                extra += parseFloat(opt.dataset.extra) || 0;
+            }
+        });
+        return extra;
+    }
+
+    // --- Stepper: +/- steps by the SELECTED TIER's own quantity ---
+    // e.g. tier = "5 pcs @ ₹1605": click + -> 10 pcs, click again -> 15 pcs ...
     const tierMinus = document.getElementById('tierMinus');
     const tierPlus  = document.getElementById('tierPlus');
     const qtyMultiplierInput = document.getElementById('qtyMultiplier');
     const totalPcsDisplay = document.getElementById('totalPcsDisplay');
     const totalPriceDisplay = document.getElementById('totalPriceDisplay');
+    const stepHint = document.getElementById('stepHint');
 
     let multiplier = 1;
 
@@ -252,16 +276,23 @@ document.addEventListener('DOMContentLoaded', function () {
         const tier = getSelectedTier();
         if (!tier) return;
 
+        const extraPerPiece = getOptionsExtraPerPiece();
         const totalPcs = tier.qty * multiplier;
-        const totalPrice = tier.price * multiplier;
+
+        // Base tier price scales with multiplier, option surcharge scales with total pieces
+        const totalPrice = (tier.price * multiplier) + (extraPerPiece * totalPcs);
 
         qtyMultiplierInput.value = multiplier;
         totalPcsDisplay.textContent = totalPcs.toLocaleString('en-IN') + ' pcs';
+
         if (totalPriceDisplay) {
             totalPriceDisplay.textContent = '₹ ' + totalPrice.toLocaleString('en-IN');
         }
         if (priceEl) {
             priceEl.textContent = '₹ ' + totalPrice.toLocaleString('en-IN');
+        }
+        if (stepHint) {
+            stepHint.textContent = 'Each click adds/removes ' + tier.qty + ' pcs (this tier\'s quantity).';
         }
     }
 
@@ -297,8 +328,11 @@ document.addEventListener('DOMContentLoaded', function () {
     function updatePrice() {
         if (!qtySelect || !priceEl || tierMinus) return; // skip: stepper handles its own price display
         const opt = qtySelect.options[qtySelect.selectedIndex];
-        const price = parseFloat(opt.dataset.price);
-        priceEl.textContent = '₹ ' + price.toLocaleString('en-IN');
+        const price = parseFloat(opt.dataset.price) || 0;
+        const qty = parseInt(opt.dataset.qty, 10) || 0;
+        const extraPerPiece = getOptionsExtraPerPiece();
+        const total = price + (extraPerPiece * qty);
+        priceEl.textContent = '₹ ' + total.toLocaleString('en-IN');
     }
 
     function updateSizeTotals() {
@@ -329,6 +363,17 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         updatePrice();
     }
+
+    // Recalculate the displayed price whenever an option (e.g. Size) changes
+    optionSelects.forEach(function (sel) {
+        sel.addEventListener('change', function () {
+            if (tierMinus) {
+                updateStepperDisplay();
+            } else {
+                updatePrice();
+            }
+        });
+    });
 
     sizeInputs.forEach(function (input) {
         input.addEventListener('input', updateSizeTotals);

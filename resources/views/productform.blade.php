@@ -94,7 +94,7 @@
                         @endif
                     </div>
                     <button type="button" id="addQuantity" class="btn btn-sm btn-outline-primary mt-2">+ Add Quantity</button>
-                    <div class="form-text">e.g. Quantity 10 → ₹450, Quantity 20 → ₹850, Quantity 25 → ₹1000. Price auto-fills based on unit price × quantity, but you can edit it.</div>
+                    <div class="form-text"></div>
                 </div>
 
                 {{-- Cloth Product --}}
@@ -122,7 +122,7 @@
                     <input type="checkbox" class="form-check-input" id="use_stepper" name="use_stepper" value="1"
                         {{ old('use_stepper', $products->use_stepper ?? false) ? 'checked' : '' }}>
                     <label class="form-check-label" for="use_stepper">
-                        Use simple +/- quantity selector on product page (skip tier/size selection)
+                        Use simple +/- quantity selector on product page
                     </label>
                 </div>
 
@@ -139,27 +139,70 @@
                 <hr>
 
                 <!-- ===================== DYNAMIC OPTIONS (Size, Color, etc.) ===================== -->
+                <!-- ===================== DYNAMIC OPTIONS (Size, Color, Paper Type, etc.) ===================== -->
                 <div class="mb-4">
                     <label class="form-label fw-bold">Product Options (Size, Color, Paper Type, etc.)</label>
                     <div id="optionsWrapper">
                         @if(isset($products) && $products->options->count())
                             @foreach($products->options as $i => $option)
-                                <div class="row g-2 mb-2 option-row">
+                                <div class="row g-2 mb-2 option-row" data-option-index="{{ $i }}">
                                     <div class="col-md-4">
-                                        <input type="text" name="options[{{ $i }}][name]" value="{{ $option->name }}" class="form-control" placeholder="Field name e.g. Size">
+                                        <input type="text" name="options[{{ $i }}][name]" value="{{ $option->name }}"
+                                            class="form-control option-name-input" placeholder="Field name e.g. Size">
                                     </div>
-                                    <div class="col-md-6">
-                                        <input type="text" name="options[{{ $i }}][values]" value="{{ $option->values }}" class="form-control" placeholder="Comma separated values e.g. S,M,L,XL">
+                                    <div class="col-md-4">
+                                        <input type="text" name="options[{{ $i }}][values]" value="{{ $option->values }}"
+                                            class="form-control option-values-input" placeholder="Comma separated values e.g. S,M,L,XL">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 set-option-prices">
+                                            🏷 Prices
+                                        </button>
                                     </div>
                                     <div class="col-md-2">
                                         <button type="button" class="btn btn-outline-danger w-100 remove-option">Remove</button>
                                     </div>
+
+                                    <input type="hidden" name="options[{{ $i }}][value_prices]" class="option-value-prices-input"
+                                        value='{{ $option->value_prices ? json_encode($option->value_prices) : "{}" }}'>
+
+                                    <div class="col-12 option-price-summary small text-muted mt-1"></div>
                                 </div>
                             @endforeach
                         @endif
                     </div>
                     <button type="button" id="addOption" class="btn btn-sm btn-outline-primary mt-2">+ Add Field</button>
-                    <div class="form-text">Example: Name = "Color", Values = "Red,Blue,Black". This renders as a dropdown on the product page.</div>
+                    <div class="form-text">
+                        Example: Name = "Size", Values = "A4,A5,A6". Click 🏷 Prices to set a price for each value
+                        (e.g. A4 → ₹500, A5 → ₹400). Leave a value's price blank to fall back to the base product price.
+                    </div>
+                </div>
+
+                <!-- ===================== Shared Option-Price Modal ===================== -->
+                <div class="modal fade" id="optionPriceModal" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="optionPriceModalTitle">Set Prices</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+
+                            <div class="modal-body">
+                                <div id="optionPriceRows"></div>
+                                <div class="form-text mt-2">
+                                    These values come from what you typed in the "Values" field for this option.
+                                    Edit "Values" and reopen this popup if you need to add/remove a value.
+                                </div>
+                            </div>
+
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" id="saveOptionPrices" class="btn btn-primary">Save</button>
+                            </div>
+
+                        </div>
+                    </div>
                 </div>
 
                 <hr>
@@ -218,18 +261,23 @@ document.addEventListener('DOMContentLoaded', function () {
     const optionsWrapper = document.getElementById('optionsWrapper');
 
     document.getElementById('addOption').addEventListener('click', function () {
-        const row = document.createElement('div');
-        row.className = 'row g-2 mb-2 option-row';
-        row.innerHTML = `
-            <div class="col-md-4">
-                <input type="text" name="options[${optionIndex}][name]" class="form-control" placeholder="Field name e.g. Size">
+    const row = document.createElement('div');
+    row.className = 'row g-2 mb-2 option-row';
+    row.innerHTML = `
+        <div class="col-md-4">
+            <input type="text" name="options[${optionIndex}][name]" class="form-control option-name-input" placeholder="Field name e.g. Size">
+        </div>
+        <div class="col-md-4">
+            <input type="text" name="options[${optionIndex}][values]" class="form-control option-values-input" placeholder="Comma separated values e.g. S,M,L,XL">
+        </div>
+        <div class="col-md-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm w-100 set-option-prices">🏷 Prices</button>
+        </div>
+        <div class="col-md-2">
+            <button type="button" class="btn btn-outline-danger w-100 remove-option">Remove</button>
             </div>
-            <div class="col-md-6">
-                <input type="text" name="options[${optionIndex}][values]" class="form-control" placeholder="Comma separated values e.g. S,M,L,XL">
-            </div>
-            <div class="col-md-2">
-                <button type="button" class="btn btn-outline-danger w-100 remove-option">Remove</button>
-            </div>`;
+            <input type="hidden" name="options[${optionIndex}][value_prices]" class="option-value-prices-input" value="{}">
+            <div class="col-12 option-price-summary small text-muted mt-1"></div>`;
         optionsWrapper.appendChild(row);
         optionIndex++;
     });
@@ -455,6 +503,110 @@ document.addEventListener('DOMContentLoaded', function () {
     if (categorySelect.value) {
         loadSubcategories(categorySelect.value, currentSubcategoryId);
     }
+
+});
+document.addEventListener('DOMContentLoaded', function () {
+
+    const optionsWrapper      = document.getElementById('optionsWrapper');
+    const optionPriceModalEl  = document.getElementById('optionPriceModal');
+    const optionPriceModal    = new bootstrap.Modal(optionPriceModalEl);
+    const optionPriceRows     = document.getElementById('optionPriceRows');
+    const optionPriceTitle    = document.getElementById('optionPriceModalTitle');
+    const saveOptionPricesBtn = document.getElementById('saveOptionPrices');
+
+    let currentOptionRow = null; // the .option-row currently being edited in the modal
+
+    function parseValues(valuesStr) {
+        return (valuesStr || '')
+            .split(',')
+            .map(v => v.trim())
+            .filter(v => v.length);
+    }
+
+    function buildPriceSummary(valuePrices) {
+        const entries = Object.entries(valuePrices).filter(([, price]) => price !== '' && price !== null);
+        if (!entries.length) return '';
+        return entries.map(([val, price]) => `<span class="badge bg-light text-dark border me-1">${val}: ₹${price}</span>`).join('');
+    }
+
+    // Open modal, build rows dynamically from that option's current Values field
+    optionsWrapper.addEventListener('click', function (e) {
+        if (!e.target.classList.contains('set-option-prices')) return;
+
+        currentOptionRow = e.target.closest('.option-row');
+
+        const nameInput   = currentOptionRow.querySelector('.option-name-input');
+        const valuesInput = currentOptionRow.querySelector('.option-values-input');
+        const pricesInput = currentOptionRow.querySelector('.option-value-prices-input');
+
+        const optionName = nameInput.value.trim() || 'Option';
+        const values = parseValues(valuesInput.value);
+
+        let existingPrices = {};
+        try {
+            existingPrices = JSON.parse(pricesInput.value || '{}');
+        } catch (err) {
+            existingPrices = {};
+        }
+
+        optionPriceTitle.textContent = 'Set Prices — ' + optionName;
+        optionPriceRows.innerHTML = '';
+
+        if (!values.length) {
+            optionPriceRows.innerHTML = '<div class="text-muted small">Type comma-separated values in the "Values" field first (e.g. A4,A5,A6), then reopen this popup.</div>';
+        } else {
+            values.forEach(function (val) {
+                const existingPrice = existingPrices[val] !== undefined ? existingPrices[val] : '';
+                const row = document.createElement('div');
+                row.className = 'row g-2 mb-2 align-items-center';
+                row.innerHTML = `
+                    <div class="col-6">
+                        <span class="form-control-plaintext fw-bold">${val}</span>
+                    </div>
+                    <div class="col-6">
+                        <input type="number" step="0.01" class="form-control price-value-input"
+                               data-value="${val.replace(/"/g, '&quot;')}"
+                               placeholder="Price" value="${existingPrice}">
+                    </div>`;
+                optionPriceRows.appendChild(row);
+            });
+        }
+
+        optionPriceModal.show();
+    });
+
+    // Save button: collect prices, write back into the hidden input of the row we opened
+    saveOptionPricesBtn.addEventListener('click', function () {
+        if (!currentOptionRow) return;
+
+        const data = {};
+        optionPriceRows.querySelectorAll('.price-value-input').forEach(function (input) {
+            const val = input.dataset.value;
+            const price = input.value.trim();
+            if (price !== '') {
+                data[val] = parseFloat(price);
+            }
+        });
+
+        const pricesInput  = currentOptionRow.querySelector('.option-value-prices-input');
+        const summaryEl    = currentOptionRow.querySelector('.option-price-summary');
+
+        pricesInput.value = JSON.stringify(data);
+        summaryEl.innerHTML = buildPriceSummary(data);
+
+        optionPriceModal.hide();
+        currentOptionRow = null;
+    });
+
+    // Existing rows on page load (edit mode) — render their saved summary badges
+    document.querySelectorAll('.option-row').forEach(function (row) {
+        const pricesInput = row.querySelector('.option-value-prices-input');
+        const summaryEl = row.querySelector('.option-price-summary');
+        try {
+            const data = JSON.parse(pricesInput.value || '{}');
+            summaryEl.innerHTML = buildPriceSummary(data);
+        } catch (e) {}
+    });
 
 });
 </script>

@@ -243,10 +243,19 @@ class Products extends Controller
                 continue;
             }
 
+            $valuePrices = null;
+            if (!empty($option['value_prices'])) {
+                $decoded = json_decode($option['value_prices'], true);
+                if (is_array($decoded) && count($decoded)) {
+                    $valuePrices = $decoded;
+                }
+            }
+
             ProductOption::create([
-                'product_id' => $product->id,
-                'name'       => $option['name'],
-                'values'     => $option['values'],
+                'product_id'   => $product->id,
+                'name'         => $option['name'],
+                'values'       => $option['values'],
+                'value_prices' => $valuePrices,
             ]);
         }
     }

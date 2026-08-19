@@ -38,6 +38,9 @@ class CartController extends Controller
         // Quantity coming from the +/- stepper (defaults to 1 for every other flow)
         $qty = max(1, (int) $request->input('quantity', 1));
 
+        // Load the product WITH its options so we can read value_prices
+        $product = \App\Models\products::with('options')->find($request->product_id);
+
         $tier = null;
         if ($request->filled('quantity_id')) {
             $tier = \App\Models\ProductQuantity::where('id', $request->quantity_id)
@@ -45,9 +48,28 @@ class CartController extends Controller
                 ->first();
         }
 
+        // ---- CHANGED: option surcharge is PER PIECE, multiplied by pieces in this tier ----
+        $optionExtraPerPiece = 0;
+
+        if ($selectedOptions && $product) {
+            foreach ($selectedOptions as $optName => $optValue) {
+                $productOption = $product->options->firstWhere('name', $optName);
+
+                if ($productOption && $productOption->value_prices && isset($productOption->value_prices[$optValue])) {
+                    $optionExtraPerPiece += (float) $productOption->value_prices[$optValue];
+                }
+            }
+        }
+
+        $baseUnitPrice = $tier->price ?? ($product->price ?? 0);
+        $piecesInTier  = $tier->quantity ?? 1;
+
+        // e.g. tier = ₹1605 for 5 pcs, option = +₹25/pc -> unitPrice = 1605 + (25 * 5) = 1730
+        $unitPrice = $baseUnitPrice + ($optionExtraPerPiece * $piecesInTier);
+        // -------------------------------------------------------------------------------
+
         // Validate size breakdown for cloth products
         $sizeBreakdown = null;
-        $product = \App\Models\products::find($request->product_id);
 
         if ($product && $product->is_cloth) {
             $request->validate([
@@ -58,7 +80,6 @@ class CartController extends Controller
             $totalSizes = $sizes->sum();
 
             if ($tier) {
-                // A quantity tier was chosen — sizes must add up exactly to it
                 $requiredQty = (int) $tier->quantity;
 
                 if ($totalSizes !== $requiredQty) {
@@ -67,7 +88,6 @@ class CartController extends Controller
                         ->with('error', 'Quantity not match. Size quantities must add up to ' . $requiredQty . '.');
                 }
             } else {
-                // No tiers on this product — just require at least one size filled in
                 if ($totalSizes < 1) {
                     return redirect()->back()
                         ->withInput()
@@ -79,7 +99,6 @@ class CartController extends Controller
         }
 
         if ($sizeBreakdown) {
-            // Cloth items with a size split are always their own cart row
             CartItem::create([
                 'cart_id'             => $cart->id,
                 'product_id'          => $request->product_id,
@@ -87,7 +106,7 @@ class CartController extends Controller
                 'selected_options'    => $selectedOptions,
                 'product_quantity_id' => $tier->id ?? null,
                 'tier_qty'            => $tier->quantity ?? null,
-                'tier_price'          => $tier->price ?? null,
+                'tier_price'          => $unitPrice,
                 'size_breakdown'      => $sizeBreakdown,
             ]);
 
@@ -112,7 +131,7 @@ class CartController extends Controller
                 'selected_options'    => $selectedOptions,
                 'product_quantity_id' => $tier->id ?? null,
                 'tier_qty'            => $tier->quantity ?? null,
-                'tier_price'          => $tier->price ?? null,
+                'tier_price'          => $unitPrice,
             ]);
         }
 

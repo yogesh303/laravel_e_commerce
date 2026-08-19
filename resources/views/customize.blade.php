@@ -84,7 +84,7 @@ body { background: #f5f6f8; }
         <div class="d-flex justify-content-between align-items-start mb-3">
             <div>
                 <h3 class="product-title mb-1">{{ $product->name }}</h3>
-                <div class="product-price text-success">
+                <div class="product-price text-success" id="displayPrice">
                     ₹ {{ number_format($product->quantities->first()->price ?? $product->price) }}
                 </div>
             </div>
@@ -123,7 +123,7 @@ body { background: #f5f6f8; }
                         <select class="form-select" name="quantity_id" id="quantitySelect" required>
                             <option value="">Select Quantity</option>
                             @foreach($product->quantities as $q)
-                                <option value="{{ $q->id }}" data-qty="{{ $q->quantity }}"
+                                <option value="{{ $q->id }}" data-qty="{{ $q->quantity }}" data-price="{{ $q->price }}"
                                     {{ (string) $prefill['quantity_id'] === (string) $q->id ? 'selected' : '' }}>
                                     {{ $q->quantity }} pcs — ₹{{ number_format($q->price) }}
                                 </option>
@@ -179,8 +179,12 @@ body { background: #f5f6f8; }
                                 <option value="">Select {{ $option->name }}</option>
                                 @foreach($option->values_array as $val)
                                     <option value="{{ $val }}"
+                                        data-extra="{{ $option->value_prices[$val] ?? 0 }}"
                                         {{ ($prefill['options'][$option->name] ?? null) === $val ? 'selected' : '' }}>
                                         {{ $val }}
+                                        @if(!empty($option->value_prices[$val]))
+                                            (+₹{{ number_format($option->value_prices[$val]) }} / pc)
+                                        @endif
                                     </option>
                                 @endforeach
                             </select>
@@ -816,6 +820,60 @@ document.addEventListener("DOMContentLoaded", function () {
 
         this.submit();
     });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Live price calculation: tier price + (option surcharge per pc × tier qty)
+    |--------------------------------------------------------------------------
+    */
+
+    const displayPriceEl = document.getElementById('displayPrice');
+    const optionTriggerSelects = document.querySelectorAll('.option-trigger-select');
+
+    function getOptionsExtraPerPiece() {
+        let extra = 0;
+        optionTriggerSelects.forEach(function (sel) {
+            const opt = sel.options[sel.selectedIndex];
+            if (opt) {
+                extra += parseFloat(opt.dataset.extra) || 0;
+            }
+        });
+        return extra;
+    }
+
+    function updateDisplayPrice() {
+        if (!displayPriceEl) return;
+
+        let basePrice = {{ $product->price ?? 0 }};
+        let piecesInTier = 1;
+
+        if (qtySelectEl) {
+            const opt = qtySelectEl.options[qtySelectEl.selectedIndex];
+            if (opt && opt.value) {
+                basePrice = parseFloat(opt.dataset.price) || 0;
+                piecesInTier = parseInt(opt.dataset.qty, 10) || 1;
+            } else {
+                // No tier selected yet — nothing to show a confident total for
+                displayPriceEl.textContent = '₹ ' + basePrice.toLocaleString('en-IN');
+                return;
+            }
+        }
+
+        const extraPerPiece = getOptionsExtraPerPiece();
+        const total = basePrice + (extraPerPiece * piecesInTier);
+
+        displayPriceEl.textContent = '₹ ' + total.toLocaleString('en-IN');
+    }
+
+    if (qtySelectEl) {
+        qtySelectEl.addEventListener('change', updateDisplayPrice);
+    }
+
+    optionTriggerSelects.forEach(function (sel) {
+        sel.addEventListener('change', updateDisplayPrice);
+    });
+
+    updateDisplayPrice(); // initial render
 
 });
 </script>

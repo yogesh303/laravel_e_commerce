@@ -6,7 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 
 class ProductOption extends Model
 {
-    protected $fillable = ['product_id', 'name', 'values'];
+    protected $fillable = ['product_id', 'name', 'values', 'value_prices'];
+
+    protected $casts = [
+        'value_prices' => 'array',
+    ];
 
     public function product()
     {
