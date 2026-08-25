@@ -27,6 +27,32 @@ class CartController extends Controller
             return redirect()->back()->with('error', 'Please login first');
         }
 
+        $request->validate([
+            'remarks'             => 'nullable|string|max:2000',
+            'additional_files.*'  => 'nullable|file',
+        ]);
+
+        // Capture remarks/files once, up front — reused in every CartItem::create below
+        $remarks = $request->input('remarks');
+        $additionalFiles = [];
+
+        if ($request->hasFile('additional_files')) {
+            $folder = public_path('uploads/attachments');
+
+            if (!file_exists($folder)) {
+                mkdir($folder, 0755, true);
+            }
+
+            foreach ($request->file('additional_files') as $file) {
+                if (!$file->isValid()) {
+                    continue;
+                }
+                $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+                $file->move($folder, $filename);
+                $additionalFiles[] = $filename;
+            }
+        }
+
         $cart = Cart::where('user_id', $user->id)->first();
 
         if (!$cart) {
@@ -35,10 +61,6 @@ class CartController extends Controller
 
         $selectedOptions = $request->filled('options') ? $request->options : null;
 
-        // Quantity coming from the +/- stepper (defaults to 1 for every other flow)
-        $qty = max(1, (int) $request->input('quantity', 1));
-
-        // Load the product WITH its options so we can read value_prices
         $product = \App\Models\products::with('options')->find($request->product_id);
 
         $tier = null;
@@ -48,7 +70,6 @@ class CartController extends Controller
                 ->first();
         }
 
-        // ---- CHANGED: option surcharge is PER PIECE, multiplied by pieces in this tier ----
         $optionExtraPerPiece = 0;
 
         if ($selectedOptions && $product) {
@@ -64,11 +85,22 @@ class CartController extends Controller
         $baseUnitPrice = $tier->price ?? ($product->price ?? 0);
         $piecesInTier  = $tier->quantity ?? 1;
 
-        // e.g. tier = ₹1605 for 5 pcs, option = +₹25/pc -> unitPrice = 1605 + (25 * 5) = 1730
-        $unitPrice = $baseUnitPrice + ($optionExtraPerPiece * $piecesInTier);
-        // -------------------------------------------------------------------------------
+        if ($tier) {
+            $addedUnits = max(0, (int) $request->input('quantity', 0));
+            $effectiveStep = ((int) ($tier->step ?? 0)) > 0 ? (int) $tier->step : $piecesInTier;
+            $totalPcs = $piecesInTier + ($addedUnits * $effectiveStep);
 
-        // Validate size breakdown for cloth products
+            $perPieceRate = $piecesInTier > 0
+                ? (($baseUnitPrice + ($optionExtraPerPiece * $piecesInTier)) / $piecesInTier)
+                : $baseUnitPrice;
+
+            $unitPrice = $perPieceRate * $totalPcs;
+        } else {
+            $qty = max(1, (int) $request->input('quantity', 1));
+            $totalPcs = $qty;
+            $unitPrice = $baseUnitPrice + ($optionExtraPerPiece * $piecesInTier);
+        }
+
         $sizeBreakdown = null;
 
         if ($product && $product->is_cloth) {
@@ -105,37 +137,173 @@ class CartController extends Controller
                 'quantity'            => 1,
                 'selected_options'    => $selectedOptions,
                 'product_quantity_id' => $tier->id ?? null,
-                'tier_qty'            => $tier->quantity ?? null,
+                'tier_qty'            => $tier ? $totalPcs : ($tier->quantity ?? null),
                 'tier_price'          => $unitPrice,
                 'size_breakdown'      => $sizeBreakdown,
+                'remarks'             => $remarks,
+                'additional_file'     => $additionalFiles[0] ?? null,
+                'additional_files'    => $additionalFiles ?: null,
             ]);
 
-            return redirect()->back()->with('success', 'Product added to cart');
+            return redirect('/cart')->with('success', 'Product added to cart');
         }
 
-        $existingItem = CartItem::where('cart_id', $cart->id)
-            ->where('product_id', $request->product_id)
-            ->whereNull('custom_image')
-            ->where('selected_options', json_encode($selectedOptions))
-            ->where('product_quantity_id', $tier->id ?? null)
+        if ($tier) {
+            $existingItem = CartItem::where('cart_id', $cart->id)
+                ->where('product_id', $request->product_id)
+                ->whereNull('custom_image')
+                ->where('selected_options', json_encode($selectedOptions))
+                ->where('product_quantity_id', $tier->id)
+                ->where('tier_qty', $totalPcs)
+                ->first();
+
+            if ($existingItem) {
+                $existingItem->quantity += 1;
+                $existingItem->save();
+            } else {
+                CartItem::create([
+                    'cart_id'             => $cart->id,
+                    'product_id'          => $request->product_id,
+                    'quantity'            => 1,
+                    'selected_options'    => $selectedOptions,
+                    'product_quantity_id' => $tier->id,
+                    'tier_qty'            => $totalPcs,
+                    'tier_price'          => $unitPrice,
+                    'remarks'             => $remarks,
+                    'additional_file'     => $additionalFiles[0] ?? null,
+                    'additional_files'    => $additionalFiles ?: null,
+                ]);
+            }
+        } else {
+            $qty = $totalPcs;
+
+            $existingItem = CartItem::where('cart_id', $cart->id)
+                ->where('product_id', $request->product_id)
+                ->whereNull('custom_image')
+                ->where('selected_options', json_encode($selectedOptions))
+                ->where('product_quantity_id', null)
+                ->first();
+
+            if ($existingItem) {
+                $existingItem->quantity += $qty;
+                $existingItem->save();
+            } else {
+                CartItem::create([
+                    'cart_id'             => $cart->id,
+                    'product_id'          => $request->product_id,
+                    'quantity'            => $qty,
+                    'selected_options'    => $selectedOptions,
+                    'product_quantity_id' => null,
+                    'tier_qty'            => null,
+                    'tier_price'          => $unitPrice,
+                    'remarks'             => $remarks,
+                    'additional_file'     => $additionalFiles[0] ?? null,
+                    'additional_files'    => $additionalFiles ?: null,
+                ]);
+            }
+        }
+
+        return redirect('/cart')->with('success', 'Product added to cart');
+    }
+    public function cart_remarks_form(Request $request, $id)
+    {
+        $user = Auth::user();
+
+        if (!$user) {
+            return redirect('/login');
+        }
+
+        $product = \App\Models\products::with(['options', 'quantities'])->findOrFail($id);
+
+        $pending = session('pending_customization');
+        $isCustomization = $pending && (int) $pending['product_id'] === (int) $id;
+
+        $prefill = [
+            'quantity_id' => old('quantity_id', $request->query('quantity_id')),
+            'quantity'    => old('quantity', $request->query('quantity', 0)),
+            'options'     => old('options', $request->query('options', [])),
+            'sizes'       => old('sizes', $request->query('sizes', [])),
+        ];
+
+        return view('cart_remarks', [
+            'product'         => $product,
+            'prefill'         => $prefill,
+            'isCustomization' => $isCustomization,
+        ]);
+    }
+
+    public function add_quantity(Request $request)
+    {
+        $user = Auth::user();
+
+        if (!$user) {
+            return redirect()->back()->with('error', 'Please login first');
+        }
+
+        $existingItem = CartItem::where('id', $request->cart_item_id)
+            ->whereHas('cart', function ($q) {
+                $q->where('user_id', Auth::id());
+            })
+            ->with('tier') // ProductQuantity relation, needed for step + base quantity
             ->first();
 
-        if ($existingItem) {
-            $existingItem->quantity += $qty;
-            $existingItem->save();
-        } else {
-            CartItem::create([
-                'cart_id'             => $cart->id,
-                'product_id'          => $request->product_id,
-                'quantity'            => $qty,
-                'selected_options'    => $selectedOptions,
-                'product_quantity_id' => $tier->id ?? null,
-                'tier_qty'            => $tier->quantity ?? null,
-                'tier_price'          => $unitPrice,
-            ]);
+        if (!$existingItem) {
+            return redirect()->back()->with('error', 'Cart item not found');
         }
 
-        return redirect()->back()->with('success', 'Product added to cart');
+        $tier = $existingItem->tier;
+
+        // ---- Stepper/tier items: move PIECES by the tier's custom step, not by
+        //      duplicating the whole bundle. Falls back to the tier's own quantity
+        //      when no custom step is set (reproduces the old behavior exactly). ----
+        if ($tier && $existingItem->tier_qty) {
+            $effectiveStep = ((int) ($tier->step ?? 0)) > 0 ? (int) $tier->step : (int) $tier->quantity;
+
+            // Per-piece rate derived from THIS line's own stored total, so any option
+            // surcharges baked in when it was added to cart stay proportionally correct.
+            $perPieceRate = $existingItem->tier_qty > 0
+                ? ($existingItem->tier_price / $existingItem->tier_qty)
+                : 0;
+
+            if ($request->action === 'add') {
+                $newTotalPcs = $existingItem->tier_qty + $effectiveStep;
+
+                $existingItem->tier_qty   = $newTotalPcs;
+                $existingItem->tier_price = $perPieceRate * $newTotalPcs;
+                $existingItem->save();
+            } else {
+                $newTotalPcs = $existingItem->tier_qty - $effectiveStep;
+
+                // Don't drop below the tier's own base quantity — if the next step
+                // would go under it, remove the row entirely (same as old floor behavior).
+                if ($newTotalPcs >= $tier->quantity) {
+                    $existingItem->tier_qty   = $newTotalPcs;
+                    $existingItem->tier_price = $perPieceRate * $newTotalPcs;
+                    $existingItem->save();
+                } else {
+                    $this->deleteCustomImages($existingItem);
+                    $existingItem->delete();
+                }
+            }
+
+            return redirect()->back();
+        }
+
+        // ---- Non-tier items: unchanged, old behavior (bundle count) ----
+        if ($request->action === 'add') {
+            $existingItem->quantity += 1;
+            $existingItem->save();
+        } else {
+            if ($existingItem->quantity > 1) {
+                $existingItem->quantity -= 1;
+                $existingItem->save();
+            } else {
+                $this->deleteCustomImages($existingItem);
+                $existingItem->delete();
+            }
+        }
+
+        return redirect()->back();
     }
     public function cart()
     {
@@ -155,38 +323,7 @@ class CartController extends Controller
 
         return view('cart', ['carts' => $cart_items]); // ✅ even if empty
     }
-    public function add_quantity(Request $request)
-    {
-        $user = Auth::user();
 
-        if (!$user) {
-            return redirect()->back()->with('error', 'Please login first');
-        }
-
-        $existingItem = CartItem::where('id', $request->cart_item_id)
-            ->whereHas('cart', function ($q) {
-                $q->where('user_id', Auth::id());
-            })->first();
-
-        if (!$existingItem) {
-            return redirect()->back()->with('error', 'Cart item not found');
-        }
-
-        if ($request->action === 'add') {
-            $existingItem->quantity += 1;
-            $existingItem->save();
-        } else {
-            if ($existingItem->quantity > 1) {
-                $existingItem->quantity -= 1;
-                $existingItem->save();
-            } else {
-                $this->deleteCustomImages($existingItem);
-                $existingItem->delete();
-            }
-        }
-
-        return redirect()->back();
-    }
     public function update_remarks(Request $request)
     {
         $user = Auth::user();
@@ -244,37 +381,37 @@ class CartController extends Controller
     {
         $folder     = public_path('uploads/customizations');
         $logoFolder = public_path('uploads/logos');
+        $attachFolder = public_path('uploads/attachments');
 
         if (!empty($item->custom_images) && is_array($item->custom_images)) {
             foreach ($item->custom_images as $img) {
                 $path = $folder . '/' . $img;
-                if (file_exists($path)) {
-                    unlink($path);
-                }
+                if (file_exists($path)) unlink($path);
             }
         }
-        if (!empty($item->additional_file)) {
-            $path = public_path('uploads/attachments') . '/' . $item->additional_file;
-            if (file_exists($path)) {
-                unlink($path);
+
+        // NEW — loop the multi-file list
+        if (!empty($item->additional_files) && is_array($item->additional_files)) {
+            foreach ($item->additional_files as $f) {
+                $path = $attachFolder . '/' . $f;
+                if (file_exists($path)) unlink($path);
             }
+        } elseif (!empty($item->additional_file)) {
+            // legacy single-file rows
+            $path = $attachFolder . '/' . $item->additional_file;
+            if (file_exists($path)) unlink($path);
         }
 
         if (!empty($item->custom_image)) {
             $path = $folder . '/' . $item->custom_image;
-            if (file_exists($path)) {
-                unlink($path);
-            }
+            if (file_exists($path)) unlink($path);
         }
 
-        // NEW — remove saved logo files
         if (!empty($item->logo_images) && is_array($item->logo_images)) {
             foreach ($item->logo_images as $logo) {
                 if (!$logo) continue;
                 $path = $logoFolder . '/' . $logo;
-                if (file_exists($path)) {
-                    unlink($path);
-                }
+                if (file_exists($path)) unlink($path);
             }
         }
     }
@@ -292,7 +429,7 @@ class CartController extends Controller
                 ->with('error', 'Invalid payment session.');
         }
 
-        Stripe::setApiKey(env('STRIPE_SECRET'));
+        Stripe::setApiKey(config('services.stripe.secret'));
 
         try {
 
@@ -370,12 +507,6 @@ class CartController extends Controller
             'custom_images.*' => 'required|string',
         ]);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Require every dynamic option to be selected, same as the product page
-        |--------------------------------------------------------------------------
-        */
-
         if ($product->options->count()) {
             $request->validate([
                 'options' => 'required|array',
@@ -387,12 +518,6 @@ class CartController extends Controller
                 ]);
             }
         }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Require a quantity tier to be selected if this product has any
-        |--------------------------------------------------------------------------
-        */
 
         $tier = null;
 
@@ -409,7 +534,6 @@ class CartController extends Controller
             }
         }
 
-        // Validate size breakdown for cloth products
         $sizeBreakdown = null;
 
         if ($product->is_cloth) {
@@ -421,7 +545,6 @@ class CartController extends Controller
             $totalSizes = $sizes->sum();
 
             if ($tier) {
-                // A quantity tier was chosen — sizes must add up exactly to it
                 $requiredQty = (int) $tier->quantity;
 
                 if ($totalSizes !== $requiredQty) {
@@ -430,7 +553,6 @@ class CartController extends Controller
                         ->with('error', 'Quantity not match. Size quantities must add up to ' . $requiredQty . '.');
                 }
             } else {
-                // No tiers on this product — just require at least one size filled in
                 if ($totalSizes < 1) {
                     return redirect()->back()
                         ->withInput()
@@ -440,8 +562,6 @@ class CartController extends Controller
 
             $sizeBreakdown = $sizes->filter(fn ($v) => $v > 0)->toArray();
         }
-
-        $cart = Cart::firstOrCreate(['user_id' => $user->id]);
 
         $folder     = public_path('uploads/customizations');
         $logoFolder = public_path('uploads/logos');
@@ -455,7 +575,7 @@ class CartController extends Controller
         }
 
         $savedFiles     = [];
-        $savedLogoFiles = []; // stays index-aligned with $savedFiles
+        $savedLogoFiles = [];
 
         foreach ($request->custom_images as $imageId => $imageData) {
 
@@ -481,12 +601,6 @@ class CartController extends Controller
             file_put_contents($folder . '/' . $filename, $data);
 
             $savedFiles[] = $filename;
-
-            /*
-            |--------------------------------------------------------------------------
-            | Save the original uploaded logo file for this same image slot (if sent)
-            |--------------------------------------------------------------------------
-            */
 
             $logoFilename = null;
 
@@ -514,7 +628,7 @@ class CartController extends Controller
                 }
             }
 
-            $savedLogoFiles[] = $logoFilename; // null if this slot had no logo — keeps indices matched
+            $savedLogoFiles[] = $logoFilename;
         }
 
         if (empty($savedFiles)) {
@@ -526,26 +640,86 @@ class CartController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | ONE cart row holding every customized image (front, back, etc.)
+        | Images are saved to disk now. Stash the reference in session and send
+        | the user to the remarks/file page — the CartItem is created there.
         |--------------------------------------------------------------------------
         */
 
-        CartItem::create([
-            'cart_id'             => $cart->id,
-            'product_id'          => $product->id,
-            'quantity'            => 1,
-            'custom_image'        => $savedFiles[0],
-            'custom_images'       => $savedFiles,
-            'logo_images'         => $savedLogoFiles,
-            'selected_options'    => $selectedOptions,
-            'product_quantity_id' => $tier->id ?? null,
-            'tier_qty'            => $tier->quantity ?? null,
-            'tier_price'          => $tier->price ?? null,
-            'size_breakdown'      => $sizeBreakdown,
+        session(['pending_customization' => [
+            'product_id'           => $product->id,
+            'custom_images'        => $savedFiles,
+            'logo_images'          => $savedLogoFiles,
+            'selected_options'     => $selectedOptions,
+            'product_quantity_id'  => $tier->id ?? null,
+            'tier_qty'             => $tier->quantity ?? null,
+            'tier_price'           => $tier->price ?? null,
+            'size_breakdown'       => $sizeBreakdown,
+        ]]);
+
+        return redirect()->route('cart.remarks.form', $product->id);
+    }
+    public function finalize_customization(Request $request, $id)
+    {
+        $user = Auth::user();
+
+        if (!$user) {
+            return redirect('/login');
+        }
+
+        $pending = session('pending_customization');
+
+        if (!$pending || (int) $pending['product_id'] !== (int) $id) {
+            return redirect()->route('product.customize', $id)
+                ->with('error', 'Your customization session expired. Please customize again.');
+        }
+
+        $request->validate([
+            'remarks'             => 'nullable|string|max:2000',
+            'additional_files.*'  => 'nullable|file',
         ]);
 
-        return redirect('/cart')
-            ->with('success', count($savedFiles) . ' customized image(s) added to cart!');
+        $remarks = $request->input('remarks');
+        $additionalFiles = [];
+
+        if ($request->hasFile('additional_files')) {
+            $folder = public_path('uploads/attachments');
+
+            if (!file_exists($folder)) {
+                mkdir($folder, 0755, true);
+            }
+
+            foreach ($request->file('additional_files') as $file) {
+                if (!$file->isValid()) {
+                    continue;
+                }
+                $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+                $file->move($folder, $filename);
+                $additionalFiles[] = $filename;
+            }
+        }
+
+        $cart = Cart::firstOrCreate(['user_id' => $user->id]);
+
+        CartItem::create([
+            'cart_id'             => $cart->id,
+            'product_id'          => $pending['product_id'],
+            'quantity'            => 1,
+            'custom_image'        => $pending['custom_images'][0] ?? null,
+            'custom_images'       => $pending['custom_images'],
+            'logo_images'         => $pending['logo_images'],
+            'selected_options'    => $pending['selected_options'],
+            'product_quantity_id' => $pending['product_quantity_id'],
+            'tier_qty'            => $pending['tier_qty'],
+            'tier_price'          => $pending['tier_price'],
+            'size_breakdown'      => $pending['size_breakdown'],
+            'remarks'             => $remarks,
+            'additional_file'     => $additionalFiles[0] ?? null,
+            'additional_files'    => $additionalFiles ?: null,
+        ]);
+
+        session()->forget('pending_customization');
+
+        return redirect('/cart')->with('success', 'Customized product added to cart!');
     }
 public function shipping_form()
 {
@@ -629,7 +803,7 @@ public function checkout()
         return redirect('/cart')->with('error', 'Cart is empty');
     }
 
-    Stripe::setApiKey(env('STRIPE_SECRET'));
+    Stripe::setApiKey(config('services.stripe.secret'));
 
     $lineItems = [];
 
@@ -764,7 +938,8 @@ public function order($session = null)
                 'tier_price'           => $item->tier_price,
                 'size_breakdown'       => $item->size_breakdown,
                 'remarks'              => $item->remarks,          // NEW
-                'additional_file'      => $item->additional_file,  // NEW
+                'additional_file'  => $item->additional_file,
+                'additional_files' => $item->additional_files,   // NEW
             ]);
         }
 
@@ -801,7 +976,6 @@ public function delete_order_item_files($id)
 
     $item = OrderItem::with('order')->findOrFail($id);
 
-    // Only admin or the order owner can delete
     if ($user->role !== 'admin' && $item->order->user_id != $user->id) {
         abort(403);
     }
@@ -810,7 +984,6 @@ public function delete_order_item_files($id)
     $logoFolder   = public_path('uploads/logos');
     $attachFolder = public_path('uploads/attachments');
 
-    // Delete all customization images
     if (!empty($item->custom_images) && is_array($item->custom_images)) {
         foreach ($item->custom_images as $img) {
             $path = $customFolder . '/' . $img;
@@ -820,7 +993,6 @@ public function delete_order_item_files($id)
         }
     }
 
-    // Legacy single custom image
     if (!empty($item->custom_image)) {
         $path = $customFolder . '/' . $item->custom_image;
         if (file_exists($path)) {
@@ -828,7 +1000,6 @@ public function delete_order_item_files($id)
         }
     }
 
-    // Delete all logo images
     if (!empty($item->logo_images) && is_array($item->logo_images)) {
         foreach ($item->logo_images as $logo) {
             if (!$logo) continue;
@@ -839,20 +1010,28 @@ public function delete_order_item_files($id)
         }
     }
 
-    // Delete additional attached file
-    if (!empty($item->additional_file)) {
+    // NEW — delete every file in the multi-file list
+    if (!empty($item->additional_files) && is_array($item->additional_files)) {
+        foreach ($item->additional_files as $file) {
+            $path = $attachFolder . '/' . $file;
+            if (file_exists($path)) {
+                unlink($path);
+            }
+        }
+    } elseif (!empty($item->additional_file)) {
+        // legacy single-file rows
         $path = $attachFolder . '/' . $item->additional_file;
         if (file_exists($path)) {
             unlink($path);
         }
     }
 
-    // Clear DB references (order item itself stays intact)
     $item->update([
         'custom_image'     => null,
         'custom_images'    => null,
         'logo_images'      => null,
         'additional_file'  => null,
+        'additional_files' => null, // NEW
     ]);
 
     return redirect()->back()->with('success', 'All files deleted for this item');
@@ -935,7 +1114,7 @@ public function checkout_razorpay()
         return redirect('/cart')->with('error', 'No valid products found in cart');
     }
 
-    $api = new Api(env('RAZORPAY_KEY'), env('RAZORPAY_SECRET'));
+    $api = new Api(config('services.razorpay.key'), config('services.razorpay.secret'));
 
     // Razorpay amount is in paise (smallest currency unit)
     $razorpayOrder = $api->order->create([
@@ -961,7 +1140,7 @@ public function razorpay_verify(Request $request)
         return redirect('/login');
     }
 
-    $api = new Api(env('RAZORPAY_KEY'), env('RAZORPAY_SECRET'));
+    $api = new Api(config('services.razorpay.key'), config('services.razorpay.secret'));
 
     $attributes = [
         'razorpay_order_id'   => $request->razorpay_order_id,

@@ -59,7 +59,7 @@
                 ₹ {{ number_format($product->quantities->first()->price ?? $product->price) }}
             </div>
 
-            <p class="text-muted">{{ $product->description }}</p>
+            <div class="text-muted">{!! $product->description !!}</div>
 
             @if($hasCustomizable)
 
@@ -81,24 +81,6 @@
                 {{-- Hidden helper form — not shown to the user, only used to capture
                      quantity/sizes/options so we can carry them to the customize page --}}
                 <form id="addToCartForm" class="d-none">
-                    @if($product->quantities->count())
-                        <select id="quantitySelect" name="quantity_id">
-                            @foreach($product->quantities as $q)
-                                <option value="{{ $q->id }}" data-price="{{ $q->price }}" data-qty="{{ $q->quantity }}">
-                                    {{ $q->quantity }} pcs — ₹{{ number_format($q->price) }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <input type="hidden" id="qtyMultiplier" name="quantity" value="1">
-                    @endif
-
-                    @if(!$product->use_stepper && $product->is_cloth)
-                        @php $sizes = ['S', 'M', 'L', 'XL', 'XXL']; @endphp
-                        @foreach($sizes as $size)
-                            <input type="number" class="size-input" name="sizes[{{ $size }}]" value="0">
-                        @endforeach
-                    @endif
-
                     @if($product->options->count())
                         @foreach($product->options as $option)
                             <select name="options[{{ $option->name }}]">
@@ -108,60 +90,54 @@
                             </select>
                         @endforeach
                     @endif
+
+                    @if(!$product->use_stepper && $product->is_cloth)
+                        @php $sizes = ['S', 'M', 'L', 'XL', 'XXL']; @endphp
+                        @foreach($sizes as $size)
+                            <input type="number" class="size-input" name="sizes[{{ $size }}]" value="0">
+                        @endforeach
+                    @endif
+
+                    @if($product->quantities->count())
+                        <select id="quantitySelect" name="quantity_id">
+                            @foreach($product->quantities as $q)
+                                <option value="{{ $q->id }}" data-price="{{ $q->price }}" data-qty="{{ $q->quantity }}" data-step="{{ $q->step }}">
+                                    {{ $q->quantity }} pcs — ₹{{ number_format($q->price) }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <input type="hidden" id="qtyMultiplier" name="quantity" value="1">
+                    @endif
                 </form>
 
             @else
 
                 {{-- Normal product: no customizable images, show direct Add to Cart --}}
-                <form method="POST" action="{{ url('/add_cart') }}" class="mb-3" id="addToCartForm">
+                <form method="GET" action="{{ route('cart.remarks.form', $product->id) }}" class="mb-3" id="addToCartForm">
                     @csrf
                     <input type="hidden" name="product_id" value="{{ $product->id }}">
 
-                    @if($product->quantities->count())
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">Quantity</label>
-
-                            @if($product->use_stepper)
-
-                                {{-- Pick the base tier, then +/- steps by THAT tier's own
-                                     quantity: base tier = 5 pcs -> click + -> 10 pcs -> 15 pcs ... --}}
-                                <select class="form-select mb-2" name="quantity_id" id="quantitySelect" required>
-                                    @foreach($product->quantities as $q)
-                                        <option value="{{ $q->id }}" data-price="{{ $q->price }}" data-qty="{{ $q->quantity }}">
-                                            {{ $q->quantity }} pcs — ₹{{ number_format($q->price) }} (base)
+                    {{-- Product options first --}}
+                    @if($product->options->count())
+                        @foreach($product->options as $option)
+                            <div class="mb-3 d-flex align-items-center gap-2">
+                                <label class="form-label fw-bold mb-0" style="min-width:140px;">{{ $option->name }}</label>
+                                <select class="form-select option-select" name="options[{{ $option->name }}]" required>
+                                    @foreach($option->values_array as $val)
+                                        <option value="{{ $val }}"
+                                            data-extra="{{ $option->value_prices[$val] ?? 0 }}">
+                                            {{ $val }}
+                                            @if(!empty($option->value_prices[$val]))
+                                                (+₹{{ number_format($option->value_prices[$val]) }} / pc)
+                                            @endif
                                         </option>
                                     @endforeach
                                 </select>
-
-                                <input type="hidden" name="quantity" id="qtyMultiplier" value="1">
-
-                                <div class="d-flex align-items-center" style="max-width:260px;">
-                                    <button type="button" class="btn btn-danger btn-sm" id="tierMinus">-</button>
-
-                                    <div class="mx-3 text-center flex-grow-1">
-                                        <div class="fw-bold" id="totalPcsDisplay"></div>
-                                        <small class="text-muted" id="totalPriceDisplay"></small>
-                                    </div>
-
-                                    <button type="button" class="btn btn-success btn-sm" id="tierPlus">+</button>
-                                </div>
-
-                                <div class="form-text mt-1" id="stepHint"></div>
-
-                            @else
-
-                                <select class="form-select" name="quantity_id" id="quantitySelect" required>
-                                    @foreach($product->quantities as $q)
-                                        <option value="{{ $q->id }}" data-price="{{ $q->price }}" data-qty="{{ $q->quantity }}">
-                                            {{ $q->quantity }} pcs — ₹{{ number_format($q->price) }}
-                                        </option>
-                                    @endforeach
-                                </select>
-
-                            @endif
-                        </div>
+                            </div>
+                        @endforeach
                     @endif
 
+                    {{-- Size-wise quantity (tied to the Quantity total below) --}}
                     @if(!$product->use_stepper && $product->is_cloth)
                         <div class="mb-3 border rounded p-3 bg-light">
                             <label class="form-label fw-bold mb-2">Size-wise Quantity</label>
@@ -194,23 +170,55 @@
                         </div>
                     @endif
 
-                    @if($product->options->count())
-                        @foreach($product->options as $option)
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">{{ $option->name }}</label>
-                                <select class="form-select option-select" name="options[{{ $option->name }}]" required>
-                                    @foreach($option->values_array as $val)
-                                        <option value="{{ $val }}"
-                                            data-extra="{{ $option->value_prices[$val] ?? 0 }}">
-                                            {{ $val }}
-                                            @if(!empty($option->value_prices[$val]))
-                                                (+₹{{ number_format($option->value_prices[$val]) }} / pc)
-                                            @endif
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        @endforeach
+                    {{-- Quantity last --}}
+                    @if($product->quantities->count())
+                        <div class="mb-3">
+
+                            @if($product->use_stepper)
+
+                                {{-- Pick the base tier, then +/- steps by THAT tier's own
+                                     quantity: base tier = 5 pcs -> click + -> 10 pcs -> 15 pcs ... --}}
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <label class="form-label fw-bold mb-0" style="min-width:140px;">Quantity</label>
+                                    <select class="form-select" name="quantity_id" id="quantitySelect" required>
+                                        @foreach($product->quantities as $q)
+                                            <option value="{{ $q->id }}" data-price="{{ $q->price }}" data-qty="{{ $q->quantity }}" data-step="{{ $q->step }}">
+                                                {{ $q->quantity }} pcs — ₹{{ number_format($q->price) }} (base)
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+
+                                <input type="hidden" name="quantity" id="qtyMultiplier" value="1">
+
+                                <div class="d-flex align-items-center" style="max-width:260px;">
+                                    <button type="button" class="btn btn-danger btn-sm" id="tierMinus">-</button>
+
+                                    <div class="mx-3 text-center flex-grow-1">
+                                        <div class="fw-bold" id="totalPcsDisplay"></div>
+                                        <small class="text-muted" id="totalPriceDisplay"></small>
+                                    </div>
+
+                                    <button type="button" class="btn btn-success btn-sm" id="tierPlus">+</button>
+                                </div>
+
+                                <div class="form-text mt-1" id="stepHint"></div>
+
+                            @else
+
+                                <div class="d-flex align-items-center gap-2">
+                                    <label class="form-label fw-bold mb-0" style="min-width:140px;">Quantity</label>
+                                    <select class="form-select" name="quantity_id" id="quantitySelect" required>
+                                        @foreach($product->quantities as $q)
+                                            <option value="{{ $q->id }}" data-price="{{ $q->price }}" data-qty="{{ $q->quantity }}" data-step="{{ $q->step }}">
+                                                {{ $q->quantity }} pcs — ₹{{ number_format($q->price) }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+
+                            @endif
+                        </div>
                     @endif
 
                     <button class="btn btn-outline-primary btn-lg w-100">🛒 Add to Cart</button>
@@ -249,8 +257,10 @@ document.addEventListener('DOMContentLoaded', function () {
         return extra;
     }
 
-    // --- Stepper: +/- steps by the SELECTED TIER's own quantity ---
-    // e.g. tier = "5 pcs @ ₹1605": click + -> 10 pcs, click again -> 15 pcs ...
+    // --- Stepper: +/- steps by a custom step size (falls back to the tier's own
+    //     quantity if no step is set, which reproduces the old behavior exactly) ---
+    // e.g. tier = "100 pcs @ ₹1605" with step 10: click + -> 110 pcs, click again -> 120 pcs ...
+    // e.g. tier = "5 pcs @ ₹1605" with NO step set: click + -> 10 pcs, click again -> 15 pcs (old logic)
     const tierMinus = document.getElementById('tierMinus');
     const tierPlus  = document.getElementById('tierPlus');
     const qtyMultiplierInput = document.getElementById('qtyMultiplier');
@@ -258,15 +268,20 @@ document.addEventListener('DOMContentLoaded', function () {
     const totalPriceDisplay = document.getElementById('totalPriceDisplay');
     const stepHint = document.getElementById('stepHint');
 
-    let multiplier = 1;
+    // Number of times "+" has been clicked beyond the base tier quantity.
+    let addedUnits = 0;
 
     function getSelectedTier() {
         if (!qtySelect) return null;
         const opt = qtySelect.options[qtySelect.selectedIndex];
         if (!opt) return null;
+        const qty = parseInt(opt.dataset.qty, 10) || 0;
+        const step = parseInt(opt.dataset.step, 10) || 0;
         return {
-            qty: parseInt(opt.dataset.qty, 10) || 0,
-            price: parseFloat(opt.dataset.price) || 0
+            qty: qty,
+            price: parseFloat(opt.dataset.price) || 0,
+            // 0/blank step -> fall back to stepping by the full tier quantity (old logic)
+            step: step > 0 ? step : qty
         };
     }
 
@@ -274,15 +289,18 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!totalPcsDisplay || !qtyMultiplierInput) return;
 
         const tier = getSelectedTier();
-        if (!tier) return;
+        if (!tier || tier.qty <= 0) return;
 
         const extraPerPiece = getOptionsExtraPerPiece();
-        const totalPcs = tier.qty * multiplier;
+        const totalPcs = tier.qty + (addedUnits * tier.step);
 
-        // Base tier price scales with multiplier, option surcharge scales with total pieces
-        const totalPrice = (tier.price * multiplier) + (extraPerPiece * totalPcs);
+        // Per-piece rate derived from this tier's own price (includes option surcharge),
+        // then scaled to whatever the current total pieces is.
+        const perPieceRate = (tier.price / tier.qty) + extraPerPiece;
+        const totalPrice = perPieceRate * totalPcs;
 
-        qtyMultiplierInput.value = multiplier;
+        // Sent to the server: how many step-increments were added beyond the base tier.
+        qtyMultiplierInput.value = addedUnits;
         totalPcsDisplay.textContent = totalPcs.toLocaleString('en-IN') + ' pcs';
 
         if (totalPriceDisplay) {
@@ -292,25 +310,25 @@ document.addEventListener('DOMContentLoaded', function () {
             priceEl.textContent = '₹ ' + totalPrice.toLocaleString('en-IN');
         }
         if (stepHint) {
-            stepHint.textContent = 'Each click adds/removes ' + tier.qty + ' pcs (this tier\'s quantity).';
+            stepHint.textContent = 'Each click adds/removes ' + tier.step + ' pcs.';
         }
     }
 
     if (tierMinus && tierPlus) {
         tierMinus.addEventListener('click', function () {
-            if (multiplier > 1) {
-                multiplier -= 1;
+            if (addedUnits > 0) {
+                addedUnits -= 1;
                 updateStepperDisplay();
             }
         });
         tierPlus.addEventListener('click', function () {
-            multiplier += 1;
+            addedUnits += 1;
             updateStepperDisplay();
         });
 
         if (qtySelect) {
             qtySelect.addEventListener('change', function () {
-                multiplier = 1; // reset multiplier when a different base tier is picked
+                addedUnits = 0; // reset when a different base tier is picked
                 updateStepperDisplay();
             });
         }

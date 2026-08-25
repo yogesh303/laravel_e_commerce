@@ -267,16 +267,24 @@
                             </div>
                         @endif
 
-                        {{-- Additional Uploaded File --}}
-                        @if(!empty($item->additional_file))
+                        {{-- Additional Uploaded File(s) --}}
+                        @php
+                            $orderFiles = $item->additional_files ?? ($item->additional_file ? [$item->additional_file] : []);
+                        @endphp
+
+                        @if(!empty($orderFiles))
                             <div class="mt-3">
-                                <strong class="d-block mb-1 small text-muted">Attached File:</strong>
-                                <a href="{{ asset('uploads/attachments/'.$item->additional_file) }}"
-                                   class="btn btn-sm btn-outline-success"
-                                   download
-                                   target="_blank">
-                                    ⬇ Download File
-                                </a>
+                                <strong class="d-block mb-1 small text-muted">Attached File{{ count($orderFiles) > 1 ? 's' : '' }}:</strong>
+                                <div class="d-flex flex-column gap-1 align-items-center">
+                                    @foreach($orderFiles as $file)
+                                        <a href="{{ asset('uploads/attachments/'.$file) }}"
+                                        class="btn btn-sm btn-outline-success w-100"
+                                        download
+                                        target="_blank">
+                                            ⬇ {{ $file }}
+                                        </a>
+                                    @endforeach
+                                </div>
                             </div>
                         @endif
 
@@ -293,7 +301,7 @@
                             $hasFiles = $item->custom_image
                                 || !empty($item->custom_images)
                                 || !empty(array_filter((array) $item->logo_images))
-                                || !empty($item->additional_file);
+                                || !empty($orderFiles);
                         @endphp
 
                         @if($hasFiles)
@@ -366,8 +374,7 @@
 
                             @if($item->tier_qty)
                                 <span class="text-muted">
-                                    ({{ $item->quantity * $item->tier_qty }} pcs total —
-                                    {{ $item->tier_qty }} pcs/batch)
+                                    ({{ $item->quantity * $item->tier_qty }} pcs total)
                                 </span>
                             @endif
 

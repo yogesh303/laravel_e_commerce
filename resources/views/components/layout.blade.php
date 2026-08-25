@@ -40,7 +40,11 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url('categories') }}">Add Categories</a>
                     </li>
-     
+
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ route('settings.index') }}">⚙️ Settings</a>
+                    </li>
+
                 @endif
 
             </ul>

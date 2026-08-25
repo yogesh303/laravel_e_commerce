@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Products Form</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
 </head>
 <body>
 <x-layout></x-layout>
@@ -27,10 +28,10 @@
             @endif
 
             @if(isset($products))
-                <form action="{{ url('/update_product') }}" method="POST" enctype="multipart/form-data">
+                <form action="{{ url('/update_product') }}" method="POST" enctype="multipart/form-data" id="productForm">
                     @method('PUT')
             @else
-                <form action="{{ url('/add_product') }}" method="POST" enctype="multipart/form-data">
+                <form action="{{ url('/add_product') }}" method="POST" enctype="multipart/form-data" id="productForm">
             @endif
                 @csrf
                 <input type="hidden" name="id" value="{{ $products->id ?? '' }}">
@@ -70,7 +71,13 @@
                 <!-- Description -->
                 <div class="mb-3">
                     <label class="form-label">Description</label>
-                    <textarea name="description" class="form-control" rows="3">{{ $products->description ?? '' }}</textarea>
+
+                    {{-- Rich text editor (Quill). The visible editor writes its HTML into the
+                         hidden textarea below on every change and right before submit, so the
+                         server keeps receiving a normal "description" field. --}}
+                    <div id="descriptionEditor" style="height:200px; background:#fff;"></div>
+
+                    <textarea name="description" id="descriptionInput" class="d-none">{{ $products->description ?? '' }}</textarea>
                 </div>
 
                 <!-- Quantity Tiers -->
@@ -80,11 +87,14 @@
                         @if(isset($products) && $products->quantities->count())
                             @foreach($products->quantities as $i => $qty)
                                 <div class="row g-2 mb-2 quantity-row">
-                                    <div class="col-md-5">
-                                        <input type="number" name="quantities[{{ $i }}][qty]" value="{{ $qty->quantity }}" class="form-control qty-input" placeholder="Quantity e.g. 10">
+                                    <div class="col-md-3">
+                                        <input type="number" name="quantities[{{ $i }}][qty]" value="{{ $qty->quantity }}" class="form-control qty-input" placeholder="Quantity e.g. 100">
                                     </div>
-                                    <div class="col-md-5">
+                                    <div class="col-md-3">
                                         <input type="number" step="0.01" name="quantities[{{ $i }}][price]" value="{{ $qty->price }}" class="form-control price-input" placeholder="Price for this quantity">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <input type="number" name="quantities[{{ $i }}][step]" value="{{ $qty->step }}" class="form-control" placeholder="Stepper +/- step e.g. 10">
                                     </div>
                                     <div class="col-md-2">
                                         <button type="button" class="btn btn-outline-danger w-100 remove-quantity">Remove</button>
@@ -94,7 +104,11 @@
                         @endif
                     </div>
                     <button type="button" id="addQuantity" class="btn btn-sm btn-outline-primary mt-2">+ Add Quantity</button>
-                    <div class="form-text"></div>
+                    <div class="form-text">
+                        "Stepper +/- step" only applies when "Use simple +/- quantity selector" is enabled below.
+                        e.g. Quantity 100 with Step 10 → the +/- buttons on the product page move 100 → 110 → 120 ...
+                        Leave it blank to keep the old behavior (+/- moves by the full quantity, e.g. 100 → 200 → 300).
+                    </div>
                 </div>
 
                 {{-- Cloth Product --}}
@@ -138,7 +152,6 @@
 
                 <hr>
 
-                <!-- ===================== DYNAMIC OPTIONS (Size, Color, etc.) ===================== -->
                 <!-- ===================== DYNAMIC OPTIONS (Size, Color, Paper Type, etc.) ===================== -->
                 <div class="mb-4">
                     <label class="form-label fw-bold">Product Options (Size, Color, Paper Type, etc.)</label>
@@ -253,6 +266,45 @@
         </div>
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    /* ---------------- Description rich text editor (Quill) ---------------- */
+    const descriptionInput = document.getElementById('descriptionInput');
+
+    const quill = new Quill('#descriptionEditor', {
+        theme: 'snow',
+        placeholder: 'Write a description for this product...',
+        modules: {
+            toolbar: [
+                [{ header: [1, 2, 3, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ list: 'ordered' }, { list: 'bullet' }],
+                ['link'],
+                ['clean']
+            ]
+        }
+    });
+
+    // Seed the editor with any existing description (edit mode)
+    if (descriptionInput.value.trim()) {
+        quill.clipboard.dangerouslyPasteHTML(descriptionInput.value);
+    }
+
+    // Keep the hidden textarea in sync as the user types
+    quill.on('text-change', function () {
+        descriptionInput.value = quill.root.innerHTML;
+    });
+
+    // Belt-and-braces: sync one more time right before the form submits
+    document.getElementById('productForm').addEventListener('submit', function () {
+        descriptionInput.value = quill.root.innerHTML;
+    });
+
+});
+</script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 
@@ -344,11 +396,14 @@ document.addEventListener('DOMContentLoaded', function () {
         const row = document.createElement('div');
         row.className = 'row g-2 mb-2 quantity-row';
         row.innerHTML = `
-            <div class="col-md-5">
-                <input type="number" name="quantities[${quantityIndex}][qty]" class="form-control qty-input" placeholder="Quantity e.g. 10">
+            <div class="col-md-3">
+                <input type="number" name="quantities[${quantityIndex}][qty]" class="form-control qty-input" placeholder="Quantity e.g. 100">
             </div>
-            <div class="col-md-5">
+            <div class="col-md-3">
                 <input type="number" step="0.01" name="quantities[${quantityIndex}][price]" class="form-control price-input" placeholder="Price for this quantity">
+            </div>
+            <div class="col-md-4">
+                <input type="number" name="quantities[${quantityIndex}][step]" class="form-control" placeholder="Stepper +/- step e.g. 10">
             </div>
             <div class="col-md-2">
                 <button type="button" class="btn btn-outline-danger w-100 remove-quantity">Remove</button>

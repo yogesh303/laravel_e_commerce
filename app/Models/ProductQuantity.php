@@ -12,6 +12,7 @@ class ProductQuantity extends Model
         'product_id',
         'quantity',
         'price',
+        'step',
     ];
 
     public function product()

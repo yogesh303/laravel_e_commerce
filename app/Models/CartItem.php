@@ -19,7 +19,9 @@ class CartItem extends Model
         'tier_price',
         'size_breakdown',
         'logo_images',
-        'remarks', 'additional_file',
+        'remarks',          // <-- add this
+        'additional_file',   // legacy, keep in sync with first item in additional_files
+        'additional_files',
     ];
 
     protected $casts = [
@@ -27,6 +29,8 @@ class CartItem extends Model
         'logo_images' => 'array',
         'selected_options' => 'array',
         'size_breakdown'    => 'array',
+        'attachments'      => 'array',
+        'additional_files' => 'array', // NEW
     ];
     public function tier()
     {

@@ -63,6 +63,7 @@ class Products extends Controller
                 'product_id' => $product->id,
                 'quantity'   => $row['qty'],
                 'price'      => $row['price'],
+                'step'       => $row['step'] ?? null,
             ]);
         }
     }

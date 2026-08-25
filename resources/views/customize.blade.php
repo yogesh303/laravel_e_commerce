@@ -112,8 +112,8 @@ body { background: #f5f6f8; }
         </p>
 
         <form method="POST"
-              action="{{ route('product.customize.save', $product->id) }}"
-              id="customizeForm">
+            action="{{ route('product.customize.save', $product->id) }}"
+            id="customizeForm">
             @csrf
 
             @if($product->quantities->count())
@@ -219,9 +219,9 @@ body { background: #f5f6f8; }
 
                 @foreach($customizableImages as $i => $img)
                     <div class="tab-pane fade {{ $i === 0 ? 'show active' : '' }}"
-                         id="tab-{{ $img->id }}"
-                         data-trigger-values='@json($img->trigger_values ?? [])'
-                         role="tabpanel">
+                        id="tab-{{ $img->id }}"
+                        data-trigger-values='@json($img->trigger_values ?? [])'
+                        role="tabpanel">
 
                         <div class="row g-4">
 
@@ -253,9 +253,9 @@ body { background: #f5f6f8; }
                                 </label>
 
                                 <input type="file" id="logoInput-{{ $img->id }}"
-                                       class="logoInput d-none"
-                                       data-img="{{ $img->id }}"
-                                       accept="image/png,image/jpeg,image/webp">
+                                    class="logoInput d-none"
+                                    data-img="{{ $img->id }}"
+                                    accept="image/png,image/jpeg,image/webp">
 
                                 <div class="mt-3">
                                     <button type="button" class="btn btn-outline-danger w-100 mb-2 removeLogo" data-img="{{ $img->id }}">

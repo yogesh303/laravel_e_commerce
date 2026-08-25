@@ -19,7 +19,9 @@ class OrderItem extends Model
         'tier_qty',               // ← was missing
         'tier_price',  
         'size_breakdown',
-        'remarks', 'additional_file',
+        'remarks',
+        'additional_file',   // legacy, first file
+        'additional_files',
     ];
 
     protected $casts = [
@@ -27,6 +29,7 @@ class OrderItem extends Model
         'logo_images' => 'array',
         'selected_options' => 'array',
         'size_breakdown'   => 'array',
+        'additional_files' => 'array',
     ];
 
     public function product()

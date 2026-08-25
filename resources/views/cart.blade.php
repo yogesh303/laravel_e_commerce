@@ -29,7 +29,6 @@
                 <th>Options</th>
                 <th>Price</th>
                 <th width="180">Quantity</th>
-                <th>Remarks / File</th>
                 <th>Total</th>
             </tr>
         </thead>
@@ -150,27 +149,6 @@
                         </div>
 
                     @endif
-                </td>
-                <td style="min-width:220px;">
-                    <form action="{{ url('cart/update-remarks') }}" method="POST" enctype="multipart/form-data" class="text-start">
-                        @csrf
-                        <input type="hidden" name="cart_item_id" value="{{ $item->id }}">
-
-                        <textarea name="remarks" class="form-control form-control-sm mb-1" rows="2"
-                            placeholder="Add remarks...">{{ $item->remarks }}</textarea>
-
-                        @if($item->additional_file)
-                            <div class="small mb-1">
-                                📎 <a href="{{ asset('uploads/attachments/' . $item->additional_file) }}" target="_blank">
-                                    {{ $item->additional_file }}
-                                </a>
-                            </div>
-                        @endif
-
-                        <input type="file" name="additional_file" class="form-control form-control-sm mb-1">
-
-                        <button class="btn btn-sm btn-outline-primary w-100">Save</button>
-                    </form>
                 </td>
 
                 <td>₹ {{ number_format($total) }}</td>

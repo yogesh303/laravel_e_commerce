@@ -6,6 +6,7 @@ use App\Http\Controllers\UserControl;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Mail;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\SettingController;
 
 
 // Default landing page — show the product catalog to everyone (guest or logged-in)
@@ -69,6 +70,11 @@ Route::middleware('auth')->group(function () {
     ->name('order.invoice.setnumber');
     Route::post('/order-item/{id}/update', [CartController::class, 'update_order_item'])
     ->name('order.item.update');
+    Route::get('/cart-remarks/{product}', [CartController::class, 'cart_remarks_form'])->name('cart.remarks.form');
+    Route::post('/product/{id}/customize/finalize', [CartController::class, 'finalize_customization'])
+        ->name('product.customize.finalize');
+    Route::get('/admin/settings', [SettingController::class, 'index'])->name('settings.index');
+    Route::post('/admin/settings', [SettingController::class, 'update'])->name('settings.update');
 });
 Route::post('/logout', [UserControl::class, 'logout'])->name('logout');
 
