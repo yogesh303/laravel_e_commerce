@@ -11,14 +11,18 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Session;
 use App\Mail\OtpMail;
 use Illuminate\Support\Facades\Mail;
+use App\Traits\MergesGuestCart;
 
 class UserControl extends Controller
 {
+    use MergesGuestCart;
+
     public function login_user(Request $data)
     {
         $validated = $data->validate([
             'email' => 'required|string|email|max:255',
             'password' => 'required|string',
+            'redirect' => 'nullable|string',
         ]);
 
         $user = User::where('email', $validated['email'])->first();
@@ -32,38 +36,18 @@ class UserControl extends Controller
 
         Auth::login($user);
 
-        return redirect('dashboard');
-    }
+        $this->mergeGuestCartIntoUser($data, $user);
 
-    /**
-     * Generate and "send" an OTP for the given mobile number.
-     * Stores the OTP + expiry in session keyed to the mobile number.
-     */
-    public function send_otp(Request $data)
-    {
-        $validated = $data->validate([
-            'email' => 'required|email',
-        ]);
+        $redirectTo = $validated['redirect'] ?? null;
 
-        $exists = User::where('email', $validated['email'])->exists();
-        if ($exists) {
-            return response()->json([
-                'success' => false,
-                'message' => 'This email is already registered.',
-            ]);
+        // Prefer an explicit redirect field (e.g. from the cart page), then
+        // Laravel's built-in "intended" url (set automatically when a guest
+        // hits an auth-protected route like /checkout), then a default.
+        if ($redirectTo) {
+            return redirect($redirectTo);
         }
 
-        $otp = random_int(100000, 999999);
-
-        Session::put('signup_otp', [
-            'email' => $validated['email'],
-            'otp' => $otp,
-            'expires_at' => now()->addMinutes(5),
-        ]);
-
-        Mail::to($validated['email'])->send(new OtpMail($otp));
-
-        return response()->json(['success' => true]);
+        return redirect()->intended('/dashboard');
     }
 
     public function signup_user(Request $data)
@@ -75,6 +59,7 @@ class UserControl extends Controller
             'account_type' => 'required|in:personal,business',
             'mobile_number' => 'required|string|max:20|unique:users',
             'otp' => 'required|digits:6',
+            'redirect' => 'nullable|string',
         ];
 
         if ($data->input('account_type') === 'business') {
@@ -113,7 +98,46 @@ class UserControl extends Controller
 
         Auth::login($user);
 
+        $this->mergeGuestCartIntoUser($data, $user);
+
+        $redirectTo = $validated['redirect'] ?? null;
+
+        if ($redirectTo) {
+            return redirect($redirectTo);
+        }
+
         return redirect('products');
+    }
+
+    /**
+     * Generate and "send" an OTP for the given mobile number.
+     * Stores the OTP + expiry in session keyed to the mobile number.
+     */
+    public function send_otp(Request $data)
+    {
+        $validated = $data->validate([
+            'email' => 'required|email',
+        ]);
+
+        $exists = User::where('email', $validated['email'])->exists();
+        if ($exists) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This email is already registered.',
+            ]);
+        }
+
+        $otp = random_int(100000, 999999);
+
+        Session::put('signup_otp', [
+            'email' => $validated['email'],
+            'otp' => $otp,
+            'expires_at' => now()->addMinutes(5),
+        ]);
+
+        Mail::to($validated['email'])->send(new OtpMail($otp));
+
+        return response()->json(['success' => true]);
     }
 
     public function logout()

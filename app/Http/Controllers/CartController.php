@@ -15,17 +15,50 @@ use Illuminate\Support\Facades\Mail;
 use Stripe\Stripe;
 use Stripe\Checkout\Session;
 use Razorpay\Api\Api;
+use App\Traits\MergesGuestCart;
 
 class CartController extends Controller
 {
+    use MergesGuestCart;
     //
-    public function add_cart(Request $request)
+    /**
+     * Get the current cart — for a logged-in user, their user cart (merging in
+     * any guest cart from this browser session). For a guest, a cart tied to
+     * a persistent session id stored in the Laravel session.
+     */
+    private function getOrCreateCart(Request $request): Cart
     {
         $user = Auth::user();
 
-        if (!$user) {
-            return redirect()->back()->with('error', 'Please login first');
+        if ($user) {
+            $cart = Cart::where('user_id', $user->id)->first();
+
+            if (!$cart) {
+                $cart = Cart::create(['user_id' => $user->id]);
+            }
+
+            $this->mergeGuestCartIntoUser($request, $user);
+
+            return Cart::where('user_id', $user->id)->first(); // re-fetch in case merge reassigned the cart
         }
+
+        if (!$request->session()->has('guest_cart_id')) {
+            $request->session()->put('guest_cart_id', (string) \Illuminate\Support\Str::uuid());
+        }
+
+        $sessionId = $request->session()->get('guest_cart_id');
+
+        return Cart::firstOrCreate(['session_id' => $sessionId, 'user_id' => null]);
+    }
+
+    /**
+     * If the person had items in a guest cart before logging in, move those
+     * items onto their real (user_id) cart, then forget the guest cart.
+     */
+
+    public function add_cart(Request $request)
+    {
+        $cart = $this->getOrCreateCart($request);
 
         $request->validate([
             'remarks'             => 'nullable|string|max:2000',
@@ -51,12 +84,6 @@ class CartController extends Controller
                 $file->move($folder, $filename);
                 $additionalFiles[] = $filename;
             }
-        }
-
-        $cart = Cart::where('user_id', $user->id)->first();
-
-        if (!$cart) {
-            $cart = Cart::create(['user_id' => $user->id]);
         }
 
         $selectedOptions = $request->filled('options') ? $request->options : null;
@@ -205,14 +232,10 @@ class CartController extends Controller
 
         return redirect('/cart')->with('success', 'Product added to cart');
     }
+
     public function cart_remarks_form(Request $request, $id)
     {
-        $user = Auth::user();
-
-        if (!$user) {
-            return redirect('/login');
-        }
-
+        // No login gate — guests can reach this page too
         $product = \App\Models\products::with(['options', 'quantities'])->findOrFail($id);
 
         $pending = session('pending_customization');
@@ -234,16 +257,10 @@ class CartController extends Controller
 
     public function add_quantity(Request $request)
     {
-        $user = Auth::user();
-
-        if (!$user) {
-            return redirect()->back()->with('error', 'Please login first');
-        }
+        $cart = $this->getOrCreateCart($request);
 
         $existingItem = CartItem::where('id', $request->cart_item_id)
-            ->whereHas('cart', function ($q) {
-                $q->where('user_id', Auth::id());
-            })
+            ->where('cart_id', $cart->id)
             ->with('tier') // ProductQuantity relation, needed for step + base quantity
             ->first();
 
@@ -305,23 +322,14 @@ class CartController extends Controller
 
         return redirect()->back();
     }
-    public function cart()
+
+    public function cart(Request $request)
     {
-        $user = Auth::user();
-
-        if (!$user) {
-            return redirect('/login');
-        }
-
-        $cart = Cart::where('user_id', $user->id)->first();
-
-        if (!$cart) {
-            return view('cart', ['carts' => []]); // ✅ no redirect
-        }
+        $cart = $this->getOrCreateCart($request);
 
         $cart_items = CartItem::where('cart_id', $cart->id)->get();
 
-        return view('cart', ['carts' => $cart_items]); // ✅ even if empty
+        return view('cart', ['carts' => $cart_items]);
     }
 
     public function update_remarks(Request $request)
@@ -456,7 +464,7 @@ class CartController extends Controller
         }
     }
 
-   public function customize(Request $request, $id)
+    public function customize(Request $request, $id)
     {
         $product = Products::with(['images', 'options', 'quantities'])->findOrFail($id);
 
@@ -494,12 +502,7 @@ class CartController extends Controller
 
     public function saveCustomization(Request $request, $id)
     {
-        $user = Auth::user();
-
-        if (!$user) {
-            return redirect('/login');
-        }
-
+        // No login gate — guests can customize too, same as normal add-to-cart
         $product = Products::with(['options', 'quantities'])->findOrFail($id);
 
         $request->validate([
@@ -640,8 +643,10 @@ class CartController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Images are saved to disk now. Stash the reference in session and send
-        | the user to the remarks/file page — the CartItem is created there.
+        | Images are saved to disk now. Stash the reference in session (works for
+        | guests too — Laravel session persists via cookie regardless of login)
+        | and send the user to the remarks/file page — the CartItem is created
+        | there, same as a normal product.
         |--------------------------------------------------------------------------
         */
 
@@ -660,12 +665,6 @@ class CartController extends Controller
     }
     public function finalize_customization(Request $request, $id)
     {
-        $user = Auth::user();
-
-        if (!$user) {
-            return redirect('/login');
-        }
-
         $pending = session('pending_customization');
 
         if (!$pending || (int) $pending['product_id'] !== (int) $id) {
@@ -698,7 +697,8 @@ class CartController extends Controller
             }
         }
 
-        $cart = Cart::firstOrCreate(['user_id' => $user->id]);
+        // Guest-aware — same cart resolution as add_cart / add_quantity
+        $cart = $this->getOrCreateCart($request);
 
         CartItem::create([
             'cart_id'             => $cart->id,

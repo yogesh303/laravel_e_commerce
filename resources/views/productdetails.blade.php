@@ -4,83 +4,118 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{{ $product->name }}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Outfit:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ asset('assets/css/styles.css') }}">
+    <style>
+        .option-row {
+            display: grid;
+            grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+            align-items: center;
+            gap: 15px;
+        }
+
+        .option-row .label {
+            margin: 0;
+            font-weight: 600;
+            line-height: 1.3;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        .option-row select {
+            width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+        }
+        .desc ul{
+            padding-left: 2rem;
+            list-style-type: disc;
+        }
+
+        @media (max-width: 600px) {
+            .option-row {
+                grid-template-columns: minmax(90px, 120px) minmax(0, 1fr);
+                gap: 10px;
+            }
+        }
+    </style>
 </head>
 <body>
 <x-layout></x-layout>
 
-<div class="container mt-5 mb-5">
+<main id="main">
+<div class="container">
 
     @if(session('success'))
-        <div class="alert alert-success">{{ session('success') }}</div>
+        <div class="alert alert-success" style="padding:var(--s4);border-radius:var(--r);background:#e6f7ee;color:#1a7f4e;margin-top:var(--s5)">{{ session('success') }}</div>
     @endif
     @if(session('error'))
-        <div class="alert alert-danger">{{ session('error') }}</div>
+        <div class="alert alert-danger" style="padding:var(--s4);border-radius:var(--r);background:#fdecea;color:#c0392b;margin-top:var(--s5)">{{ session('error') }}</div>
     @endif
 
     @php
         $hasCustomizable = $product->images->where('is_customizable', true)->count() > 0;
     @endphp
 
-    <div class="row g-4">
+    <div class="crumbs" style="padding-top: var(--s5)">
+        <a href="{{ url('/') }}">Home</a> <span class="sep">›</span>
+        <a href="{{ url('products') }}">Products</a> <span class="sep">›</span>
+        <span>{{ $product->name }}</span>
+    </div>
+
+    <section class="product-detail">
 
         <!-- Gallery -->
-        <div class="col-lg-6">
-            <div class="card shadow p-3">
+        <div class="gallery">
+            <div class="gallery-thumbs">
+                <button class="is-active" onclick="document.getElementById('mainImage').src=this.querySelector('img').src; document.querySelectorAll('.gallery-thumbs button').forEach(b=>b.classList.remove('is-active')); this.classList.add('is-active');">
+                    <img src="{{ asset('images/' . $product->image) }}" alt="{{ $product->name }}">
+                </button>
 
-                <img id="mainImage"
-                     src="{{ asset('images/' . $product->image) }}"
-                     class="img-fluid rounded mb-3"
-                     style="height:400px;object-fit:cover;width:100%;">
-
-                <div class="d-flex gap-2 flex-wrap">
-                    <img src="{{ asset('images/' . $product->image) }}"
-                         class="thumb rounded border"
-                         style="width:70px;height:70px;object-fit:cover;cursor:pointer;"
-                         onclick="document.getElementById('mainImage').src=this.src">
-
-                    @foreach($product->images as $img)
-                        <img src="{{ asset('images/' . $img->image) }}"
-                             class="thumb rounded border"
-                             style="width:70px;height:70px;object-fit:cover;cursor:pointer;"
-                             onclick="document.getElementById('mainImage').src=this.src">
-                    @endforeach
-                </div>
-
+                @foreach($product->images as $img)
+                    <button onclick="document.getElementById('mainImage').src=this.querySelector('img').src; document.querySelectorAll('.gallery-thumbs button').forEach(b=>b.classList.remove('is-active')); this.classList.add('is-active');">
+                        <img src="{{ asset('images/' . $img->image) }}" alt="{{ $product->name }}">
+                    </button>
+                @endforeach
             </div>
+
+            <figure class="gallery-main">
+                <img id="mainImage" src="{{ asset('images/' . $product->image) }}" alt="{{ $product->name }}">
+            </figure>
         </div>
 
         <!-- Details -->
-        <div class="col-lg-6">
-            <div class="card shadow p-4">
+        <div class="pdp-info">
 
-            <h3>{{ $product->name }}</h3>
-            <div class="fs-4 text-success fw-bold mb-3" id="displayPrice">
-                ₹ {{ number_format($product->quantities->first()->price ?? $product->price) }}
+            <h1>{{ $product->name }}</h1>
+
+            <div class="price-row">
+                <span class="now" id="displayPrice">₹ {{ number_format($product->quantities->first()->price ?? $product->price) }}</span>
             </div>
 
-            <div class="text-muted">{!! $product->description !!}</div>
+            <div class="desc">{!! $product->description !!}</div>
 
             @if($hasCustomizable)
 
                 {{-- This product requires customization before it can be added to cart --}}
-                <div class="alert alert-info small">
+                <div style="background:var(--bg);border-radius:var(--r);padding:var(--s4);font-size:var(--text-sm);margin:var(--s5) 0;">
                     This product must be customized before adding to cart.
                 </div>
 
-                <a href="{{ route('product.customize', $product->id) }}" class="btn btn-success btn-lg w-100" id="customizeLink">
-                    🎨 Customize This Product
-                </a>
-
-                <div class="mt-2">
-                    <small class="text-muted">
-                        {{ $product->images->where('is_customizable', true)->count() }} image(s) available to customize
-                    </small>
+                <div class="pdp-cta">
+                    <a href="{{ route('product.customize', $product->id) }}" class="btn btn--indigo" style="flex:1;justify-content:center" id="customizeLink">
+                        🎨 Customize This Product
+                    </a>
                 </div>
+
+                <p style="font-family:var(--ff-mono);font-size:var(--text-xs);color:var(--fg-mute);margin-top:var(--s3)">
+                    {{ $product->images->where('is_customizable', true)->count() }} image(s) available to customize
+                </p>
 
                 {{-- Hidden helper form — not shown to the user, only used to capture
                      quantity/sizes/options so we can carry them to the customize page --}}
-                <form id="addToCartForm" class="d-none">
+                <form id="addToCartForm" class="d-none" style="display:none">
                     @if($product->options->count())
                         @foreach($product->options as $option)
                             <select name="options[{{ $option->name }}]">
@@ -113,58 +148,74 @@
             @else
 
                 {{-- Normal product: no customizable images, show direct Add to Cart --}}
-                <form method="GET" action="{{ route('cart.remarks.form', $product->id) }}" class="mb-3" id="addToCartForm">
+                <form method="GET" action="{{ route('cart.remarks.form', $product->id) }}" id="addToCartForm">
                     @csrf
                     <input type="hidden" name="product_id" value="{{ $product->id }}">
 
                     {{-- Product options first --}}
                     @if($product->options->count())
                         @foreach($product->options as $option)
-                            <div class="mb-3 d-flex align-items-center gap-2">
-                                <label class="form-label fw-bold mb-0" style="min-width:140px;">{{ $option->name }}</label>
-                                <select class="form-select option-select" name="options[{{ $option->name }}]" required>
-                                    @foreach($option->values_array as $val)
-                                        <option value="{{ $val }}"
-                                            data-extra="{{ $option->value_prices[$val] ?? 0 }}">
-                                            {{ $val }}
-                                            @if(!empty($option->value_prices[$val]))
-                                                (+₹{{ number_format($option->value_prices[$val]) }} / pc)
-                                            @endif
-                                        </option>
-                                    @endforeach
-                                </select>
+                            <div class="option-block">
+                                <div class="option-row">
+
+                                    <div class="label">
+                                        {{ $option->name }}
+                                    </div>
+
+                                    <select
+                                        class="option-select"
+                                        name="options[{{ $option->name }}]"
+                                        required
+                                        style="padding:10px 14px;border-radius:var(--r);border:1px solid var(--rule-strong);font-family:var(--ff-body);font-size:var(--text-sm);background:#fff;"
+                                    >
+                                        @foreach($option->values_array as $val)
+                                            <option
+                                                value="{{ $val }}"
+                                                data-extra="{{ $option->value_prices[$val] ?? 0 }}"
+                                            >
+                                                {{ $val }}
+
+                                                @if(!empty($option->value_prices[$val]))
+                                                    (+₹{{ number_format($option->value_prices[$val]) }} / pc)
+                                                @endif
+                                            </option>
+                                        @endforeach
+                                    </select>
+
+                                </div>
                             </div>
                         @endforeach
                     @endif
 
                     {{-- Size-wise quantity (tied to the Quantity total below) --}}
                     @if(!$product->use_stepper && $product->is_cloth)
-                        <div class="mb-3 border rounded p-3 bg-light">
-                            <label class="form-label fw-bold mb-2">Size-wise Quantity</label>
+                        <div class="option-block">
+                            <div class="label">Size-wise Quantity</div>
 
                             @php
                                 $sizes = ['S', 'M', 'L', 'XL', 'XXL'];
                             @endphp
 
-                            <div class="row g-2">
+                            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:var(--s3);margin-top:var(--s2)">
                                 @foreach($sizes as $size)
-                                    <div class="col-4 col-md-2">
-                                        <label class="form-label small mb-1">{{ $size }}</label>
+                                    <div>
+                                        <label style="display:block;font-family:var(--ff-mono);font-size:var(--text-xs);color:var(--fg-mute);margin-bottom:4px">{{ $size }}</label>
                                         <input type="number"
                                                name="sizes[{{ $size }}]"
-                                               class="form-control size-input"
+                                               class="size-input"
                                                min="0"
-                                               value="0">
+                                               value="0"
+                                               style="width:100%;padding:8px;border-radius:var(--r);border:1px solid var(--rule-strong);text-align:center;">
                                     </div>
                                 @endforeach
                             </div>
 
-                            <div class="mt-2 small">
+                            <div style="margin-top:var(--s3);font-family:var(--ff-mono);font-size:var(--text-xs);color:var(--fg-soft)">
                                 Selected: <span id="sizeTotal">0</span> /
                                 Required: <span id="requiredTotal">0</span>
                             </div>
 
-                            <div id="sizeMismatchWarning" class="text-danger small mt-1" style="display:none;">
+                            <div id="sizeMismatchWarning" style="display:none;color:#c0392b;font-size:var(--text-xs);margin-top:4px;">
                                 Quantity not match — size quantities must add up to the selected total quantity.
                             </div>
                         </div>
@@ -172,67 +223,104 @@
 
                     {{-- Quantity last --}}
                     @if($product->quantities->count())
-                        <div class="mb-3">
+                        <div class="option-block">
 
-                            @if($product->use_stepper)
+                           @if($product->use_stepper)
 
-                                {{-- Pick the base tier, then +/- steps by THAT tier's own
-                                     quantity: base tier = 5 pcs -> click + -> 10 pcs -> 15 pcs ... --}}
-                                <div class="d-flex align-items-center gap-2 mb-2">
-                                    <label class="form-label fw-bold mb-0" style="min-width:140px;">Quantity</label>
-                                    <select class="form-select" name="quantity_id" id="quantitySelect" required>
-                                        @foreach($product->quantities as $q)
-                                            <option value="{{ $q->id }}" data-price="{{ $q->price }}" data-qty="{{ $q->quantity }}" data-step="{{ $q->step }}">
-                                                {{ $q->quantity }} pcs — ₹{{ number_format($q->price) }} (base)
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                </div>
+                                <div class="option-row">
 
-                                <input type="hidden" name="quantity" id="qtyMultiplier" value="1">
-
-                                <div class="d-flex align-items-center" style="max-width:260px;">
-                                    <button type="button" class="btn btn-danger btn-sm" id="tierMinus">-</button>
-
-                                    <div class="mx-3 text-center flex-grow-1">
-                                        <div class="fw-bold" id="totalPcsDisplay"></div>
-                                        <small class="text-muted" id="totalPriceDisplay"></small>
+                                    <div class="label">
+                                        Quantity
                                     </div>
 
-                                    <button type="button" class="btn btn-success btn-sm" id="tierPlus">+</button>
-                                </div>
+                                    <div>
+                                        <select name="quantity_id" id="quantitySelect" required
+                                            style="width:100%;padding:10px 14px;border-radius:var(--r);border:1px solid var(--rule-strong);font-family:var(--ff-body);font-size:var(--text-sm);background:#fff;margin-bottom:var(--s3);box-sizing:border-box;">
+                                            
+                                            @foreach($product->quantities as $q)
+                                                <option
+                                                    value="{{ $q->id }}"
+                                                    data-price="{{ $q->price }}"
+                                                    data-qty="{{ $q->quantity }}"
+                                                    data-step="{{ $q->step }}"
+                                                >
+                                                    {{ $q->quantity }} pcs — ₹{{ number_format($q->price) }} (base)
+                                                </option>
+                                            @endforeach
 
-                                <div class="form-text mt-1" id="stepHint"></div>
+                                        </select>
+
+                                        <input type="hidden" name="quantity" id="qtyMultiplier" value="1">
+
+                                        <div class="qty" style="max-width:180px;">
+                                            <button type="button" data-act="-" id="tierMinus" aria-label="Decrease">−</button>
+
+                                            <div style="text-align:center;flex:1;">
+                                                <div style="font-weight:700" id="totalPcsDisplay"></div>
+                                            </div>
+
+                                            <button type="button" data-act="+" id="tierPlus" aria-label="Increase">+</button>
+                                        </div>
+
+                                        <div style="font-family:var(--ff-mono);font-size:var(--text-xs);color:var(--fg-mute);margin-top:var(--s2)"
+                                            id="totalPriceDisplay"></div>
+
+                                        <div style="font-family:var(--ff-mono);font-size:var(--text-xs);color:var(--fg-mute);margin-top:4px"
+                                            id="stepHint"></div>
+                                    </div>
+
+                                </div>
 
                             @else
 
-                                <div class="d-flex align-items-center gap-2">
-                                    <label class="form-label fw-bold mb-0" style="min-width:140px;">Quantity</label>
-                                    <select class="form-select" name="quantity_id" id="quantitySelect" required>
+                                <div class="option-row">
+
+                                    <div class="label">
+                                        Quantity
+                                    </div>
+
+                                    <select name="quantity_id" id="quantitySelect" required
+                                        style="padding:10px 14px;border-radius:var(--r);border:1px solid var(--rule-strong);font-family:var(--ff-body);font-size:var(--text-sm);background:#fff;">
+                                        
                                         @foreach($product->quantities as $q)
-                                            <option value="{{ $q->id }}" data-price="{{ $q->price }}" data-qty="{{ $q->quantity }}" data-step="{{ $q->step }}">
+                                            <option
+                                                value="{{ $q->id }}"
+                                                data-price="{{ $q->price }}"
+                                                data-qty="{{ $q->quantity }}"
+                                                data-step="{{ $q->step }}"
+                                            >
                                                 {{ $q->quantity }} pcs — ₹{{ number_format($q->price) }}
                                             </option>
                                         @endforeach
+
                                     </select>
+
                                 </div>
 
                             @endif
                         </div>
                     @endif
 
-                    <button class="btn btn-outline-primary btn-lg w-100">🛒 Add to Cart</button>
+                    <div class="pdp-cta">
+                        <button type="submit" class="btn btn--indigo" style="flex:1;min-width:160px;justify-content:center">🛒 Add to cart →</button>
+                    </div>
                 </form>
 
             @endif
 
+            <div class="pdp-features">
+                <div class="pf"><span class="ic">⚡</span><span>Free shipping over ₹999</span></div>
+                <div class="pf"><span class="ic">↺</span><span>Easy returns</span></div>
+                <div class="pf"><span class="ic">✓</span><span>Quality checked</span></div>
             </div>
+
         </div>
 
-    </div>
-</div>
+    </section>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.min.js"></script>
+</div>
+</main>
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const qtySelect = document.getElementById('quantitySelect');
@@ -259,8 +347,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // --- Stepper: +/- steps by a custom step size (falls back to the tier's own
     //     quantity if no step is set, which reproduces the old behavior exactly) ---
-    // e.g. tier = "100 pcs @ ₹1605" with step 10: click + -> 110 pcs, click again -> 120 pcs ...
-    // e.g. tier = "5 pcs @ ₹1605" with NO step set: click + -> 10 pcs, click again -> 15 pcs (old logic)
     const tierMinus = document.getElementById('tierMinus');
     const tierPlus  = document.getElementById('tierPlus');
     const qtyMultiplierInput = document.getElementById('qtyMultiplier');
@@ -268,7 +354,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const totalPriceDisplay = document.getElementById('totalPriceDisplay');
     const stepHint = document.getElementById('stepHint');
 
-    // Number of times "+" has been clicked beyond the base tier quantity.
     let addedUnits = 0;
 
     function getSelectedTier() {
@@ -280,7 +365,6 @@ document.addEventListener('DOMContentLoaded', function () {
         return {
             qty: qty,
             price: parseFloat(opt.dataset.price) || 0,
-            // 0/blank step -> fall back to stepping by the full tier quantity (old logic)
             step: step > 0 ? step : qty
         };
     }
@@ -294,12 +378,9 @@ document.addEventListener('DOMContentLoaded', function () {
         const extraPerPiece = getOptionsExtraPerPiece();
         const totalPcs = tier.qty + (addedUnits * tier.step);
 
-        // Per-piece rate derived from this tier's own price (includes option surcharge),
-        // then scaled to whatever the current total pieces is.
         const perPieceRate = (tier.price / tier.qty) + extraPerPiece;
         const totalPrice = perPieceRate * totalPcs;
 
-        // Sent to the server: how many step-increments were added beyond the base tier.
         qtyMultiplierInput.value = addedUnits;
         totalPcsDisplay.textContent = totalPcs.toLocaleString('en-IN') + ' pcs';
 
@@ -328,12 +409,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (qtySelect) {
             qtySelect.addEventListener('change', function () {
-                addedUnits = 0; // reset when a different base tier is picked
+                addedUnits = 0;
                 updateStepperDisplay();
             });
         }
 
-        updateStepperDisplay(); // initial render
+        updateStepperDisplay();
     }
 
     // --- Existing tier / size logic (unchanged, used by non-stepper products) ---
@@ -344,7 +425,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function updatePrice() {
-        if (!qtySelect || !priceEl || tierMinus) return; // skip: stepper handles its own price display
+        if (!qtySelect || !priceEl || tierMinus) return;
         const opt = qtySelect.options[qtySelect.selectedIndex];
         const price = parseFloat(opt.dataset.price) || 0;
         const qty = parseInt(opt.dataset.qty, 10) || 0;
@@ -382,7 +463,6 @@ document.addEventListener('DOMContentLoaded', function () {
         updatePrice();
     }
 
-    // Recalculate the displayed price whenever an option (e.g. Size) changes
     optionSelects.forEach(function (sel) {
         sel.addEventListener('change', function () {
             if (tierMinus) {
@@ -399,7 +479,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     updateSizeTotals();
 
-    // Only relevant for the real (non-customizable-product) Add to Cart form
     if (form && sizeInputs.length && form.getAttribute('action')) {
         form.addEventListener('submit', function (e) {
             let total = 0;
@@ -428,5 +507,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 </script>
+
+<x-footer></x-footer>
+<script src="{{ asset('assets/js/main.js') }}" defer></script>
 </body>
 </html>

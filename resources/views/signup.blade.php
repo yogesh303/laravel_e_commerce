@@ -45,6 +45,7 @@
 
             <form action="{{ url('signup_user') }}" method="POST" id="signupForm">
                 @csrf
+                <input type="hidden" name="redirect" value="{{ request()->query('redirect') }}">
 
                 <!-- Account type toggle -->
                 <div class="mb-3">
@@ -69,7 +70,7 @@
                     </div>
                     <div class="mb-3">
                         <label>GST Number</label>
-                        <input type="text" name="company_name" class="form-control" value="{{ old('gst_no') }}" placeholder="Enter company name">
+                        <input type="text" name="gst_no" class="form-control" value="{{ old('gst_no') }}" placeholder="Enter company name">
                     </div>
                     <div class="mb-3">
                         <label>Industry</label>

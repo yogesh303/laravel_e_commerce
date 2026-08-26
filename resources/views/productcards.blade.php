@@ -4,49 +4,68 @@
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Products Form</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Products</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Outfit:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ asset('assets/css/styles.css') }}">
 </head>
 <body>
 <x-layout></x-layout>
-<h2 class="mb-4 mt-2 text-center">Products</h2>
-<div class="container">
-    <div class="row">
 
-        @foreach($products as $row)
-        <div class="col-md-3 mb-4">
-            <div class="card h-100 shadow-sm">
+<main id="main">
+    <section class="section" style="padding-top: var(--s5)">
+        <div class="container">
 
-                {{-- Product Image --}}
-                <img src="{{ asset('images/'.$row->image) }}" 
-                     class="card-img-top" 
-                     style="height:200px; object-fit:cover;" 
-                     alt="product">
-
-                <div class="card-body d-flex flex-column">
-
-                    {{-- Name --}}
-                    <h5 class="card-title">{{ $row->name }}</h5>
-
-                    {{-- Price --}}
-                    <p class="text-success fw-bold">₹ {{ $row->price }}</p>
-
-                    {{-- Buttons --}}
-                    <div class="mt-auto">
-                        <a href="{{ url('/product/' . $row->id) }}"
-                        class="btn btn-warning w-100">
-                            View Product
-                        </a>
-
-                    </div>
-
-                </div>
+            <div class="section-head">
+                <h2>All Products</h2>
             </div>
-        </div>
-        @endforeach
 
-    </div>
-</div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.min.js"></script>
+            <div class="products">
+
+                @forelse($products as $row)
+                    <article class="product-card">
+                        <div class="img-wrap">
+                            @if($row->quantity <= 5 && $row->quantity > 0)
+                                <span class="badge badge--sale">Low stock</span>
+                            @elseif($row->created_at && $row->created_at->gt(now()->subDays(14)))
+                                <span class="badge">New</span>
+                            @endif
+
+                            <button class="wishlist" aria-label="Wishlist">♡</button>
+
+                            <a href="{{ url('/product/' . $row->id) }}">
+                                <img src="{{ asset('images/' . $row->image) }}" alt="{{ $row->name }}" />
+                            </a>
+                        </div>
+
+                        <!-- <div class="stock">
+                            <span class="dot"></span>
+                            @if($row->quantity > 0)
+                                In stock · {{ $row->quantity }} items
+                            @else
+                                <span style="color:#c0392b">Out of stock</span>
+                            @endif
+                        </div> -->
+
+                        <a href="{{ url('/product/' . $row->id) }}" class="name">{{ $row->name }}</a>
+
+                        <div class="price">
+                            <span class="now">₹ {{ number_format($row->price) }}</span>
+                        </div>
+
+                        <a href="{{ url('/product/' . $row->id) }}" class="btn">View Product →</a>
+                    </article>
+                @empty
+                    <p>No products found.</p>
+                @endforelse
+
+            </div>
+
+        </div>
+    </section>
+</main>
+
+<x-footer></x-footer>
+
+<script src="{{ asset('assets/js/main.js') }}" defer></script>
 </body>
 </html>

@@ -109,6 +109,6 @@
         </div>
     </form>
 </div>
-
+<x-footer></x-footer>
 </body>
 </html>

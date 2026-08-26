@@ -57,6 +57,7 @@
 
             <form method="POST" action="{{ url('login_user') }}">
                 @csrf
+                <input type="hidden" name="redirect" value="{{ request()->query('redirect') }}">
 
                 <div class="mb-3">
                     <label>Email</label>
@@ -73,9 +74,8 @@
                 </div>
                 <div class="text-center mt-2">
                     Not have account?
-                    <a href="{{ url('signup') }}" class="link">Sign up</a>
+                    <a href="{{ url('signup') }}?redirect={{ urlencode(request()->query('redirect', '')) }}" class="link">Sign up</a>
                 </div>
-
             </form>
 
         </div>
