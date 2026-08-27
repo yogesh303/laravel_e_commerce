@@ -36,6 +36,10 @@ class AppServiceProvider extends ServiceProvider
                     'mail.mailers.smtp.password' => Setting::get('mail_password', config('mail.mailers.smtp.password')),
                     'mail.from.address'          => Setting::get('mail_from_address', config('mail.from.address')),
                     'mail.from.name'             => Setting::get('mail_from_name', config('mail.from.name')),
+
+                    // Inbox that contact-form submissions get sent to.
+                    // Falls back to yogeshkanzariya5@gmail.com if no 'support_email' row exists yet.
+                    'mail.support_to' => Setting::get('support_email', config('mail.support_to', 'yogeshkanzariya5@gmail.com')),
                 ]);
             }
         } catch (\Throwable $e) {

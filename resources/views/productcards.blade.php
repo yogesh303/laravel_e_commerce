@@ -16,7 +16,21 @@
         <div class="container">
 
             <div class="section-head">
-                <h2>All Products</h2>
+                @if(isset($activeSubcategory) && $activeSubcategory)
+                    <h2>{{ $activeSubcategory->name }}</h2>
+                    <p style="opacity:.65;margin-top:4px;">
+                        in {{ $activeSubcategory->category->name ?? '' }}
+                        &nbsp;·&nbsp;
+                        <a href="{{ url('products') }}">Clear filter</a>
+                    </p>
+                @elseif(isset($activeCategory) && $activeCategory)
+                    <h2>{{ $activeCategory->name }}</h2>
+                    <p style="opacity:.65;margin-top:4px;">
+                        <a href="{{ url('products') }}">Clear filter</a>
+                    </p>
+                @else
+                    <h2>All Products</h2>
+                @endif
             </div>
 
             <div class="products">
@@ -36,15 +50,6 @@
                                 <img src="{{ asset('images/' . $row->image) }}" alt="{{ $row->name }}" />
                             </a>
                         </div>
-
-                        <!-- <div class="stock">
-                            <span class="dot"></span>
-                            @if($row->quantity > 0)
-                                In stock · {{ $row->quantity }} items
-                            @else
-                                <span style="color:#c0392b">Out of stock</span>
-                            @endif
-                        </div> -->
 
                         <a href="{{ url('/product/' . $row->id) }}" class="name">{{ $row->name }}</a>
 

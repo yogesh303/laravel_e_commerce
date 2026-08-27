@@ -43,13 +43,13 @@
             <div class="footer-col">
                 <h4>Get to know us</h4>
                 <ul>
-                    <li><a href="#">About us</a></li>
-                    <li><a href="#">Contact</a></li>
+                    <li><a href="{{ url('about') }}">About us</a></li>
+                    <li><a href="{{ url('contact') }}">Contact</a></li>
                     @guest
                         <li><a href="{{ url('/login') }}">Login / Register</a></li>
                     @endguest
-                    <li><a href="#">Terms &amp; conditions</a></li>
-                    <li><a href="#">Privacy policy</a></li>
+                    <li><a href="{{ url('/terms-and-conditions') }}">Terms &amp; conditions</a></li>
+                    <li><a href="{{ url('/privacy-policy') }}">Privacy policy</a></li>
                     <li><a href="#">FAQs</a></li>
                 </ul>
             </div>

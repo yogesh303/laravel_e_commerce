@@ -94,7 +94,7 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Attach file(s) (optional)</label>
+                        <label class="form-label fw-bold">Attach Original File</label>
 
                         <div id="fileRowsContainer">
                             {{-- first row --}}

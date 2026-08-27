@@ -67,6 +67,11 @@ class Products extends Controller
             ]);
         }
     }
+
+    /**
+     * Admin "Product list" table (resources/views/productlist.blade.php).
+     * Unchanged from original.
+     */
     public function show()
     {
         $products = ModelsProducts::with(['images', 'options'])->get();
@@ -99,11 +104,13 @@ class Products extends Controller
             $id = $request->id;
             $product = ModelsProducts::find($id);
 
-            $product->name        = $request->name;
-            $product->price       = $request->price;
-            $product->description = $request->description;
-            $product->is_cloth = $request->boolean('is_cloth');
-            $product->use_stepper = $request->boolean('use_stepper');
+            $product->name           = $request->name;
+            $product->price          = $request->price;
+            $product->description    = $request->description;
+            $product->category_id    = $request->category_id;
+            $product->subcategory_id = $request->subcategory_id;
+            $product->is_cloth       = $request->boolean('is_cloth');
+            $product->use_stepper    = $request->boolean('use_stepper');
 
             // Replace main image
             if ($request->hasFile('image')) {
@@ -192,10 +199,50 @@ class Products extends Controller
         return redirect('product_list');
     }
 
-    public function products_card()
+    /**
+     * Customer-facing "Products" page (resources/views/productcards.blade.php).
+     * This is what the nav / mega menu / search box link to via url('products').
+     *
+     * Supports optional filtering via query string:
+     *   /products?category_id=3
+     *   /products?subcategory_id=12
+     *   /products?search=hoodie
+     */
+    public function products_card(Request $request)
     {
-        $products = ModelsProducts::with(['images', 'options'])->get();
-        return view('productcards', ['products' => $products]);
+        $query = ModelsProducts::with(['images', 'options']);
+
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->category_id);
+        }
+
+        if ($request->filled('subcategory_id')) {
+            $query->where('subcategory_id', $request->subcategory_id);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        $products = $query->get();
+
+        $activeCategory = $request->filled('category_id')
+            ? \App\Models\Category::find($request->category_id)
+            : null;
+
+        $activeSubcategory = $request->filled('subcategory_id')
+            ? \App\Models\Subcategory::find($request->subcategory_id)
+            : null;
+
+        return view('productcards', [
+            'products'          => $products,
+            'activeCategory'    => $activeCategory,
+            'activeSubcategory' => $activeSubcategory,
+        ]);
     }
 
     /**

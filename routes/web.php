@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Mail;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\SettingController;
+use App\Http\Controllers\ContactController;
+use App\Http\Controllers\SearchController;
 
 
 // Default landing page — show the product catalog to everyone (guest or logged-in)
@@ -44,7 +46,14 @@ Route::get('/customize/{id}', [CartController::class, 'customize'])->name('produ
 Route::post('/customize/{id}/save', [CartController::class, 'saveCustomization'])->name('product.customize.save');
 Route::post('/product/{id}/customize/finalize', [CartController::class, 'finalize_customization'])
         ->name('product.customize.finalize');
-
+Route::get('/contact', [ContactController::class, 'show'])->name('contact');
+Route::post('/contact', [ContactController::class, 'send'])->name('contact.send');
+// Static pages — no controller needed since these don't process any input
+Route::view('/about', 'about')->name('about');
+Route::view('/privacy-policy', 'privacy')->name('privacy');
+Route::view('/terms-and-conditions', 'terms')->name('terms');
+// Live search suggestions (used by the header search bar's dropdown)
+Route::get('/search/suggest', [SearchController::class, 'suggest'])->name('search.suggest');
 
 // Customizing a product still needs an account (it saves to the user's cart)
 Route::middleware('auth')->group(function () {
