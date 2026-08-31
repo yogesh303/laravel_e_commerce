@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8" />
@@ -9,9 +9,9 @@
 </head>
 <body>
 <x-layout></x-layout>
- 
- <h2 class="mt-2 text-center">Product list</h2>
- <div class="container">
+
+<h2 class="mt-2 text-center">Product list</h2>
+<div class="container">
 <form action="delete_all" method="POST">
     @csrf
     <table class="table table-bordered text-center">
@@ -19,7 +19,8 @@
             <th>#</th>
             <th>Product</th>
             <th>Price</th>
-            <th>description</th>
+            <th>Category</th>
+            <th>Sub Category</th>
             <th>Action</th>
         </thead>
         @foreach($products as $row)
@@ -27,7 +28,8 @@
             <td><input type="checkbox" name="id[]" value="{{$row->id}}" /></td>
             <td>{{$row->name}}</td>
             <td>${{$row->price}}</td>
-            <td>{{$row->description}}</td>
+            <td>{{$row->category->name ?? '-'}}</td>
+            <td>{{$row->subcategory->name ?? '-'}}</td>
             <td><a href='delete_product/{{$row->id}}'>Delete</a> <a href='edit_product/{{$row->id}}'>Edit</a></td>
         </tr>
         @endforeach

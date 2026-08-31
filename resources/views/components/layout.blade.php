@@ -100,6 +100,9 @@
     .dropdown-toggle svg.chevron {
         display: none;
     }
+    .dropdown-toggle::after {
+        display: none;
+    }
 
     /* --- Search suggestions dropdown --- */
     .search-wrap {
@@ -217,8 +220,7 @@
 <header class="site-header">
     <div class="container">
         <a href="{{ url('/') }}" class="brand">
-            <span class="brand-mark">🛒</span>
-            E-Commerce
+            <img src="{{ asset('assets/images/logo.jpg') }}" alt="E-Commerce" width="200px" class="brand-logo">
         </a>
 
         <div class="search-wrap" id="searchWrap">

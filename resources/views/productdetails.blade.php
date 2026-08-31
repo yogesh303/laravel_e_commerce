@@ -39,6 +39,73 @@
                 gap: 10px;
             }
         }
+
+        /* ---- Gallery layout override: main image on top, thumbnails below ----
+           Selectors are scoped + !important because assets/css/styles.css
+           already styles .gallery/.gallery-main/.gallery-thumbs for the old
+           side-by-side layout with its own specificity; without this the
+           browser keeps the old (small) sizing on the main image. */
+        .product-detail .gallery {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: var(--s3, 12px) !important;
+            width: 100% !important;
+        }
+
+        .product-detail .gallery .gallery-main {
+            order: 1 !important;
+            margin: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            flex: none !important;
+            border-radius: var(--r, 12px);
+            overflow: hidden;
+            background: var(--bg, #f5f5f5);
+        }
+
+        .product-detail .gallery .gallery-main img {
+            display: block !important;
+            width: 100% !important;
+            height: auto !important;
+            max-width: 100% !important;
+            /* max-height: 520px !important; */
+            min-width: 0 !important;
+            object-fit: contain !important;
+            margin: 0 auto !important;
+        }
+
+        .product-detail .gallery .gallery-thumbs {
+            order: 2 !important;
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            gap: 10px !important;
+            width: 100% !important;
+            justify-content: flex-start !important;
+        }
+
+        .product-detail .gallery .gallery-thumbs button {
+            padding: 0;
+            border: 2px solid var(--rule-strong, #e2e2e2);
+            border-radius: var(--r, 8px);
+            background: none;
+            cursor: pointer;
+            width: 72px !important;
+            height: 72px !important;
+            flex: 0 0 auto !important;
+            overflow: hidden;
+        }
+
+        .product-detail .gallery .gallery-thumbs button.is-active {
+            border-color: var(--indigo, #4f46e5);
+        }
+
+        .product-detail .gallery .gallery-thumbs img {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -66,8 +133,13 @@
 
     <section class="product-detail">
 
-        <!-- Gallery -->
+        <!-- Gallery: main image first, thumbnails below -->
         <div class="gallery">
+
+            <figure class="gallery-main">
+                <img id="mainImage" src="{{ asset('images/' . $product->image) }}" alt="{{ $product->name }}">
+            </figure>
+
             <div class="gallery-thumbs">
                 <button class="is-active" onclick="document.getElementById('mainImage').src=this.querySelector('img').src; document.querySelectorAll('.gallery-thumbs button').forEach(b=>b.classList.remove('is-active')); this.classList.add('is-active');">
                     <img src="{{ asset('images/' . $product->image) }}" alt="{{ $product->name }}">
@@ -80,9 +152,6 @@
                 @endforeach
             </div>
 
-            <figure class="gallery-main">
-                <img id="mainImage" src="{{ asset('images/' . $product->image) }}" alt="{{ $product->name }}">
-            </figure>
         </div>
 
         <!-- Details -->
@@ -302,7 +371,7 @@
                     @endif
 
                     <div class="pdp-cta">
-                        <button type="submit" class="btn btn--indigo" style="flex:1;min-width:160px;justify-content:center">🛒 Add to cart →</button>
+                        <button type="submit" class="btn btn--indigo" style="flex:1;min-width:160px;justify-content:center">Procced to upload design →</button>
                     </div>
                 </form>
 

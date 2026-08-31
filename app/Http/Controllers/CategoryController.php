@@ -56,4 +56,22 @@ class CategoryController extends Controller
         $subcategories = Subcategory::where('category_id', $category_id)->get();
         return response()->json($subcategories);
     }
+    public function update(Request $request, $id)
+    {
+        $request->validate(['name' => 'required|string|max:255']);
+
+        $category = Category::findOrFail($id);
+        $category->update(['name' => $request->name]);
+
+        return back()->with('success', 'Category updated.');
+    }
+    public function updateSubcategory(Request $request, $id)
+    {
+        $request->validate(['name' => 'required|string|max:255']);
+
+        $subcategory = Subcategory::findOrFail($id);
+        $subcategory->update(['name' => $request->name]);
+
+        return back()->with('success', 'Subcategory updated.');
+    }
 }

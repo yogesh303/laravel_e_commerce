@@ -67,7 +67,7 @@
                     <tr>
                         <th>Category</th>
                         <th>Subcategories</th>
-                        <th width="120">Action</th>
+                        <th width="140">Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -78,22 +78,79 @@
                                 @forelse($cat->subcategories as $sub)
                                     <span class="badge bg-secondary me-1 mb-1">
                                         {{ $sub->name }}
+                                        <a href="#" class="text-white text-decoration-none" style="font-size:11px;"
+                                           data-bs-toggle="modal" data-bs-target="#editSubModal{{ $sub->id }}" title="Edit">✎</a>
                                         <form method="POST" action="{{ url('/subcategories/'.$sub->id) }}" class="d-inline">
                                             @csrf @method('DELETE')
                                             <button class="btn btn-sm p-0 text-white border-0 bg-transparent" style="font-size:11px;" onclick="return confirm('Delete this subcategory?')">✕</button>
                                         </form>
                                     </span>
+
+                                    <!-- Edit Subcategory Modal -->
+                                    <div class="modal fade" id="editSubModal{{ $sub->id }}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <form method="POST" action="{{ url('/subcategories/'.$sub->id) }}">
+                                                    @csrf
+                                                    @method('PUT')
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title">Edit Subcategory</h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                    </div>
+                                                    <div class="modal-body">
+                                                        <input type="text" name="name" class="form-control"
+                                                               value="{{ $sub->name }}" required>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                        <button type="submit" class="btn btn-success">Save Changes</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
                                 @empty
                                     <span class="text-muted">No subcategories</span>
                                 @endforelse
                             </td>
                             <td>
-                                <form method="POST" action="{{ url('/categories/'.$cat->id) }}" onsubmit="return confirm('This will delete all its subcategories too. Continue?')">
-                                    @csrf @method('DELETE')
-                                    <button class="btn btn-sm btn-danger">Delete</button>
-                                </form>
+                                <div class="d-flex gap-1">
+                                    <button type="button" class="btn btn-sm btn-primary"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#editModal{{ $cat->id }}">
+                                        Edit
+                                    </button>
+                                    <form method="POST" action="{{ url('/categories/'.$cat->id) }}" onsubmit="return confirm('This will delete all its subcategories too. Continue?')">
+                                        @csrf @method('DELETE')
+                                        <button class="btn btn-sm btn-danger">Delete</button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
+
+                        <!-- Edit Category Modal -->
+                        <div class="modal fade" id="editModal{{ $cat->id }}" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <form method="POST" action="{{ url('/categories/'.$cat->id) }}">
+                                        @csrf
+                                        @method('PUT')
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Edit Category</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <input type="text" name="name" class="form-control"
+                                                value="{{ $cat->name }}" required>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                            <button type="submit" class="btn btn-success">Save Changes</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
                     @empty
                         <tr><td colspan="3" class="text-center text-muted">No categories yet</td></tr>
                     @endforelse
@@ -105,4 +162,5 @@
 </div>
 <x-footer></x-footer>
 </body>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
 </html>

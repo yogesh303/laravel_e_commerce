@@ -31,7 +31,7 @@ class ContactController extends Controller
 
         // Change this to wherever support mail should land — env('MAIL_SUPPORT_TO')
         // is a good option if you want it configurable per environment.
-        $to = config('mail.support_to', 'support@ecommerce.com');
+        $to = config('mail.support_to', 'support@mahiprint.com');
 
         Mail::to($to)->send(new ContactMail($validated));
 

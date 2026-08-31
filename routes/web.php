@@ -37,6 +37,8 @@ Route::middleware(['auth','admin'])->group(function () {
 
     Route::post('/subcategories', [CategoryController::class, 'storeSubcategory']);
     Route::delete('/subcategories/{id}', [CategoryController::class, 'destroySubcategory']);
+    Route::put('/categories/{id}', [CategoryController::class, 'update']);
+    Route::put('/subcategories/{id}', [CategoryController::class, 'updateSubcategory']);
 });
 
 // Public: anyone (guest or logged-in) can browse products and view product details

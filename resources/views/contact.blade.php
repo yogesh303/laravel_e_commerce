@@ -35,14 +35,14 @@
               <div class="ic">✉</div>
               <div>
                 <div class="label">EMAIL US</div>
-                <div class="value"><a href="mailto:support@ecommerce.com">support@ecommerce.com</a></div>
+                <div class="value"><a href="mailto:support@mahiprint.com">support@mahiprint.com</a></div>
               </div>
             </div>
             <div class="info-block">
               <div class="ic">☏</div>
               <div>
                 <div class="label">CALL US</div>
-                <div class="value"><a href="tel:+911234567890">+91 12345 67890</a></div>
+                <div class="value"><a href="tel:+919427392217">+91 9427392217</a></div>
               </div>
             </div>
             <div class="info-block">
@@ -75,7 +75,7 @@
                 <p
                   style="color: rgba(255,255,255,0.85); font-size: var(--text-sm); line-height: 1.6; margin-bottom: var(--s4)">
                   Email us directly and a member of our team will follow up with a quote.</p>
-                <a href="mailto:support@ecommerce.com" class="btn btn--paper">Email us →</a>
+                <a href="mailto:support@mahiprint.com" class="btn btn--paper">Email us →</a>
               </div>
             </div>
           </div>
