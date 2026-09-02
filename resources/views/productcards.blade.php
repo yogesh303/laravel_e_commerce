@@ -12,7 +12,6 @@
             width: 100%;
             position: relative;
         }
-
         .carousel-slide {
             width: 100%;
             min-height: 460px;
@@ -23,14 +22,12 @@
             align-items: center;
             position: relative;
         }
-
         .carousel-slide::before {
             content: "";
             position: absolute;
             inset: 0;
             background: linear-gradient(90deg, rgba(245, 179, 179, 0.6) 0%, rgba(0,0,0,0.25) 55%, rgba(0,0,0,0) 100%);
         }
-
         .hero-content {
             position: relative;
             z-index: 1;
@@ -38,7 +35,6 @@
             margin-left: 6%;
             color: #fff;
         }
-
         .hero-content h1 {
             font-size: 2.6rem;
             font-weight: 700;
@@ -46,13 +42,11 @@
             line-height: 1.2;
             color: #2E1A3D;
         }
-
         .hero-content p {
             font-size: 1.05rem;
             opacity: 0.9;
             margin-bottom: 20px;
         }
-
         .hero-content .hero-btn {
             display: inline-block;
             background: #fff;
@@ -62,7 +56,6 @@
             font-weight: 600;
             text-decoration: none;
         }
-
         @media (max-width: 768px) {
             .carousel-slide { min-height: 320px; }
             .hero-content { margin-left: 5%; max-width: 90%; }
@@ -72,7 +65,6 @@
 </head>
 <body>
 <x-layout></x-layout>
-
 <main id="main">
 
     @if(!(isset($activeSubcategory) && $activeSubcategory) && !(isset($activeCategory) && $activeCategory))
@@ -92,7 +84,6 @@
 
     <section class="section" style="padding-top: var(--s5)">
         <div class="container">
-
             <div class="section-head">
                 @if(isset($activeSubcategory) && $activeSubcategory)
                     <h2>{{ $activeSubcategory->name }}</h2>
@@ -110,7 +101,6 @@
                     <h2>All Products</h2>
                 @endif
             </div>
-
             <div class="products">
 
                 @forelse($products as $row)
@@ -142,7 +132,6 @@
                 @endforelse
 
             </div>
-
         </div>
     </section>
 </main>

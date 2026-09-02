@@ -68,7 +68,6 @@
             width: 100% !important;
             height: auto !important;
             max-width: 100% !important;
-            /* max-height: 520px !important; */
             min-width: 0 !important;
             object-fit: contain !important;
             margin: 0 auto !important;
@@ -96,16 +95,50 @@
             overflow: hidden;
         }
 
-        .product-detail .gallery .gallery-thumbs button.is-active {
-            border-color: var(--indigo, #4f46e5);
-        }
+        .product-detail .gallery {
+    position: relative; /* so the side zoom panel can anchor to the whole gallery */
+}
 
-        .product-detail .gallery .gallery-thumbs img {
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: cover !important;
-            display: block;
-        }
+.product-detail .gallery .gallery-main {
+    position: relative;
+    cursor: crosshair;
+}
+
+/* The small square that follows the cursor over the main image */
+.zoom-lens {
+    position: absolute;
+    border: 2px solid var(--indigo, #4f46e5);
+    background: rgba(79, 70, 229, 0.12);
+    width: 150px;
+    height: 150px;
+    pointer-events: none;
+    display: none;
+    z-index: 4;
+}
+
+/* The side panel showing the magnified view */
+.zoom-pane {
+    position: absolute;
+    top: 0;
+    left: calc(100% + 16px);
+    width: 420px;
+    height: 420px;
+    max-height: 100%;
+    border: 1px solid var(--rule-strong, #e2e2e2);
+    border-radius: var(--r, 12px);
+    background-repeat: no-repeat;
+    background-color: #fff;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    display: none;
+    z-index: 5;
+}
+
+/* Only show the side zoom panel on screens wide enough to fit it beside the gallery */
+@media (max-width: 1100px) {
+    .zoom-pane { display: none !important; }
+    .zoom-lens { display: none !important; }
+    .product-detail .gallery .gallery-main { cursor: default; }
+}
     </style>
 </head>
 <body>
@@ -138,15 +171,22 @@
 
             <figure class="gallery-main">
                 <img id="mainImage" src="{{ asset('images/' . $product->image) }}" alt="{{ $product->name }}">
+
+                <button type="button" class="gallery-nav-btn gallery-nav-prev" id="galleryPrev" aria-label="Previous image">&#10094;</button>
+                <button type="button" class="gallery-nav-btn gallery-nav-next" id="galleryNext" aria-label="Next image">&#10095;</button>
+
+                <div class="zoom-lens" id="zoomLens"></div>
             </figure>
 
-            <div class="gallery-thumbs">
-                <button class="is-active" onclick="document.getElementById('mainImage').src=this.querySelector('img').src; document.querySelectorAll('.gallery-thumbs button').forEach(b=>b.classList.remove('is-active')); this.classList.add('is-active');">
+            <div class="zoom-pane" id="zoomPane"></div>
+
+            <div class="gallery-thumbs" id="galleryThumbs">
+                <button class="is-active" data-index="0">
                     <img src="{{ asset('images/' . $product->image) }}" alt="{{ $product->name }}">
                 </button>
 
                 @foreach($product->images as $img)
-                    <button onclick="document.getElementById('mainImage').src=this.querySelector('img').src; document.querySelectorAll('.gallery-thumbs button').forEach(b=>b.classList.remove('is-active')); this.classList.add('is-active');">
+                    <button data-index="{{ $loop->iteration }}">
                         <img src="{{ asset('images/' . $img->image) }}" alt="{{ $product->name }}">
                     </button>
                 @endforeach
@@ -391,6 +431,90 @@
 </main>
 
 <script>
+document.addEventListener('DOMContentLoaded', function () {
+    const mainImage    = document.getElementById('mainImage');
+    const mainFigure   = document.querySelector('.gallery-main');
+    const thumbButtons = Array.from(document.querySelectorAll('#galleryThumbs button'));
+    const images       = thumbButtons.map(btn => btn.querySelector('img').src);
+    const prevBtn       = document.getElementById('galleryPrev');
+    const nextBtn       = document.getElementById('galleryNext');
+
+    let currentIndex = 0;
+
+    function showImage(index) {
+        if (index < 0) index = images.length - 1;
+        if (index >= images.length) index = 0;
+        currentIndex = index;
+        mainImage.src = images[currentIndex];
+        thumbButtons.forEach((btn, i) => btn.classList.toggle('is-active', i === currentIndex));
+
+        const zoomPane = document.getElementById('zoomPane');
+        if (zoomPane) zoomPane.style.backgroundImage = 'url("' + images[currentIndex] + '")';
+    }
+
+    thumbButtons.forEach((btn, i) => btn.addEventListener('click', () => showImage(i)));
+
+    if (prevBtn) prevBtn.addEventListener('click', () => showImage(currentIndex - 1));
+    if (nextBtn) nextBtn.addEventListener('click', () => showImage(currentIndex + 1));
+
+    // Hide arrows if there's only one image
+    if (images.length <= 1) {
+        if (prevBtn) prevBtn.style.display = 'none';
+        if (nextBtn) nextBtn.style.display = 'none';
+    }
+
+    // Cursor-following zoom on the main image
+    // Amazon-style lens + side zoom panel
+    if (mainFigure && mainImage) {
+        const zoomLens = document.getElementById('zoomLens');
+        const zoomPane = document.getElementById('zoomPane');
+        const ZOOM_FACTOR = 2.5; // how much more magnified the pane is vs the lens
+
+        function isZoomEnabled() {
+            return zoomPane && window.matchMedia('(min-width: 1101px)').matches;
+        }
+
+        mainFigure.addEventListener('mouseenter', function () {
+            if (!isZoomEnabled()) return;
+            zoomLens.style.display = 'block';
+            zoomPane.style.display = 'block';
+            zoomPane.style.backgroundImage = 'url("' + mainImage.src + '")';
+        });
+
+        mainFigure.addEventListener('mousemove', function (e) {
+            if (!isZoomEnabled()) return;
+
+            const rect = mainFigure.getBoundingClientRect();
+            const lensW = zoomLens.offsetWidth;
+            const lensH = zoomLens.offsetHeight;
+
+            let x = e.clientX - rect.left - lensW / 2;
+            let y = e.clientY - rect.top - lensH / 2;
+
+            // Keep the lens inside the image bounds
+            x = Math.max(0, Math.min(x, rect.width - lensW));
+            y = Math.max(0, Math.min(y, rect.height - lensH));
+
+            zoomLens.style.left = x + 'px';
+            zoomLens.style.top = y + 'px';
+
+            // Background size = actual image size * zoom factor
+            const bgW = rect.width * ZOOM_FACTOR;
+            const bgH = rect.height * ZOOM_FACTOR;
+            zoomPane.style.backgroundSize = bgW + 'px ' + bgH + 'px';
+
+            // Position the background so the lensed area fills the pane
+            const bgX = -(x * (bgW / rect.width));
+            const bgY = -(y * (bgH / rect.height));
+            zoomPane.style.backgroundPosition = bgX + 'px ' + bgY + 'px';
+        });
+
+        mainFigure.addEventListener('mouseleave', function () {
+            zoomLens.style.display = 'none';
+            zoomPane.style.display = 'none';
+        });
+    }
+});
 document.addEventListener('DOMContentLoaded', function () {
     const qtySelect = document.getElementById('quantitySelect');
     const priceEl = document.getElementById('displayPrice');

@@ -206,8 +206,7 @@
 <div class="utility">
     <div class="container">
         <span class="promo">
-            <span class="tag">SALE</span>
-            Free shipping on orders over ₹999 · Easy returns
+
         </span>
         <span class="links">
             <a href="{{ url('orders') }}">Track order</a>
