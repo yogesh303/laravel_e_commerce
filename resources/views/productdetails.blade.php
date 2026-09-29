@@ -139,6 +139,87 @@
     .zoom-lens { display: none !important; }
     .product-detail .gallery .gallery-main { cursor: default; }
 }
+
+/* ---- Reviews ---- */
+.product-reviews {
+    margin-top: var(--s6, 40px);
+    padding-top: var(--s5, 24px);
+    border-top: 1px solid var(--rule-strong, #e2e2e2);
+}
+
+.reviews-summary {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: var(--s4, 16px);
+    flex-wrap: wrap;
+}
+
+.reviews-summary .avg-score {
+    font-size: 28px;
+    font-weight: 800;
+}
+
+.stars-static {
+    color: #f5b301;
+    letter-spacing: 2px;
+    font-size: 22px;
+}
+
+/* Clickable star input, built as radios in reverse DOM order so the
+   ~ (general sibling) selector can light up everything "before" (visually
+   to the left of) the hovered/checked star. */
+.star-rating {
+    display: flex;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    gap: 4px;
+}
+
+.star-rating input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.star-rating label {
+    font-size: 30px;
+    line-height: 1;
+    color: #ddd;
+    cursor: pointer;
+    transition: color .15s ease;
+}
+
+.star-rating input:checked ~ label,
+.star-rating label:hover,
+.star-rating label:hover ~ label {
+    color: #f5b301;
+}
+
+#reviewForm textarea:focus,
+#reviewForm .star-rating label:focus-visible {
+    outline: 2px solid var(--indigo, #4f46e5);
+    outline-offset: 2px;
+}
+
+.review-item {
+    padding: var(--s4, 16px) 0;
+    border-bottom: 1px solid var(--rule-strong, #e2e2e2);
+}
+
+.review-item:last-child {
+    border-bottom: none;
+}
+
+.verified-badge {
+    font-size: var(--text-xs, 12px);
+    color: #1a7f4e;
+    background: #e6f7ee;
+    padding: 2px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
     </style>
 </head>
 <body>
@@ -152,6 +233,11 @@
     @endif
     @if(session('error'))
         <div class="alert alert-danger" style="padding:var(--s4);border-radius:var(--r);background:#fdecea;color:#c0392b;margin-top:var(--s5)">{{ session('error') }}</div>
+    @endif
+    @if($errors->any())
+        <div class="alert alert-danger" style="padding:var(--s4);border-radius:var(--r);background:#fdecea;color:#c0392b;margin-top:var(--s5)">
+            {{ $errors->first() }}
+        </div>
     @endif
 
     @php
@@ -198,6 +284,15 @@
         <div class="pdp-info">
 
             <h1>{{ $product->name }}</h1>
+
+            @if(($reviewCount ?? 0) > 0)
+                <div style="display:flex;align-items:center;gap:8px;margin:6px 0 var(--s3)">
+                    <span class="stars-static">{{ str_repeat('★', round($avgRating)) }}{{ str_repeat('☆', 5 - round($avgRating)) }}</span>
+                    <span style="font-family:var(--ff-mono);font-size:var(--text-xs);color:var(--fg-mute)">
+                        {{ $avgRating }} ({{ $reviewCount }} {{ Str::plural('review', $reviewCount) }})
+                    </span>
+                </div>
+            @endif
 
             <div class="price-row">
                 <span class="now" id="displayPrice">₹ {{ number_format($product->quantities->first()->price ?? $product->price) }}</span>
@@ -417,12 +512,104 @@
 
             @endif
 
-            <div class="pdp-features">
-                <div class="pf"><span class="ic">⚡</span><span>Free shipping over ₹999</span></div>
-                <div class="pf"><span class="ic">↺</span><span>Easy returns</span></div>
-                <div class="pf"><span class="ic">✓</span><span>Quality checked</span></div>
-            </div>
+        </div>
 
+    </section>
+
+    <!-- ============ Customer Reviews ============ -->
+    <section class="product-reviews">
+
+        <h2 style="margin-bottom:var(--s3)">Customer Reviews</h2>
+
+        <div class="reviews-summary">
+            @if(($reviewCount ?? 0) > 0)
+                <span class="avg-score">{{ $avgRating }}</span>
+                <span class="stars-static">{{ str_repeat('★', round($avgRating)) }}{{ str_repeat('☆', 5 - round($avgRating)) }}</span>
+                <span style="font-family:var(--ff-mono);font-size:var(--text-xs);color:var(--fg-mute)">
+                    based on {{ $reviewCount }} {{ Str::plural('review', $reviewCount) }}
+                </span>
+            @else
+                <span style="color:var(--fg-mute)">No reviews yet.</span>
+            @endif
+        </div>
+
+        {{-- Write a review: only rendered for logged-in users who bought this
+             product and haven't already reviewed it. The server (ReviewController)
+             re-checks all of this — this is just so the button doesn't appear
+             when it can't be used. --}}
+        @auth
+            @if($canReview ?? false)
+                <button type="button" id="showReviewFormBtn" class="btn btn--indigo" style="margin-bottom:var(--s4)">
+                    ✍️ Write a Review
+                </button>
+
+                <form method="POST" action="{{ route('reviews.store') }}" id="reviewForm"
+                      style="display:none;margin-bottom:var(--s5);padding:var(--s4);border:1px solid var(--rule-strong);border-radius:var(--r);max-width:520px;">
+                    @csrf
+                    <input type="hidden" name="product_id" value="{{ $product->id }}">
+
+                    <div class="label" style="margin-bottom:8px">Your Rating</div>
+                    <div class="star-rating" style="margin-bottom:var(--s3)">
+                        <input type="radio" id="star5" name="rating" value="5" required>
+                        <label for="star5" title="5 stars">★</label>
+
+                        <input type="radio" id="star4" name="rating" value="4">
+                        <label for="star4" title="4 stars">★</label>
+
+                        <input type="radio" id="star3" name="rating" value="3">
+                        <label for="star3" title="3 stars">★</label>
+
+                        <input type="radio" id="star2" name="rating" value="2">
+                        <label for="star2" title="2 stars">★</label>
+
+                        <input type="radio" id="star1" name="rating" value="1">
+                        <label for="star1" title="1 star">★</label>
+                    </div>
+
+                    <div class="label" style="margin-bottom:8px">Your Review</div>
+                    <textarea name="review" rows="4" maxlength="2000"
+                              placeholder="Share your experience with this product..."
+                              style="width:100%;padding:10px 14px;border-radius:var(--r);border:1px solid var(--rule-strong);font-family:var(--ff-body);font-size:var(--text-sm);box-sizing:border-box;"></textarea>
+
+                    <button type="submit" class="btn btn--indigo" style="margin-top:var(--s3)">Submit Review</button>
+                </form>
+            @elseif($alreadyReviewed ?? false)
+                <p style="font-family:var(--ff-mono);font-size:var(--text-xs);color:var(--fg-mute);margin-bottom:var(--s4)">
+                    ✅ You've already reviewed this product.
+                </p>
+            @else
+                <p style="font-family:var(--ff-mono);font-size:var(--text-xs);color:var(--fg-mute);margin-bottom:var(--s4)">
+                    Only customers who have purchased this product can write a review.
+                </p>
+            @endif
+        @else
+            <p style="font-family:var(--ff-mono);font-size:var(--text-xs);color:var(--fg-mute);margin-bottom:var(--s4)">
+                <a href="{{ route('login') }}">Log in</a> to write a review if you've purchased this product.
+            </p>
+        @endauth
+
+        <div class="reviews-list">
+            @forelse(($reviews ?? []) as $r)
+                <div class="review-item">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap">
+                        <span class="stars-static" style="font-size:14px">{{ str_repeat('★', $r->rating) }}{{ str_repeat('☆', 5 - $r->rating) }}</span>
+                        <strong>{{ $r->user->name ?? 'Anonymous' }}</strong>
+                        @if($r->is_verified_purchase)
+                            <span class="verified-badge">Verified Purchase</span>
+                        @endif
+                    </div>
+
+                    @if($r->review)
+                        <p style="margin:4px 0 0;color:var(--fg-soft)">{{ $r->review }}</p>
+                    @endif
+
+                    <span style="display:block;margin-top:6px;font-family:var(--ff-mono);font-size:var(--text-xs);color:var(--fg-mute)">
+                        {{ $r->created_at->format('d M Y') }}
+                    </span>
+                </div>
+            @empty
+                <p style="color:var(--fg-mute)">No reviews yet. Be the first to review this product!</p>
+            @endforelse
         </div>
 
     </section>
@@ -695,6 +882,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 e.preventDefault();
                 mismatchWarning.style.display = '';
                 alert('Quantity not match. Size quantities must add up to ' + required + '.');
+            }
+        });
+    }
+});
+
+// --- Toggle the "Write a Review" form ---
+document.addEventListener('DOMContentLoaded', function () {
+    const showReviewFormBtn = document.getElementById('showReviewFormBtn');
+    const reviewForm = document.getElementById('reviewForm');
+
+    if (showReviewFormBtn && reviewForm) {
+        showReviewFormBtn.addEventListener('click', function () {
+            const isHidden = reviewForm.style.display === 'none' || !reviewForm.style.display;
+            reviewForm.style.display = isHidden ? 'block' : 'none';
+            if (isHidden) {
+                reviewForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         });
     }

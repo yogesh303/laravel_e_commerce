@@ -4,8 +4,12 @@
     $user_role  = Auth::check() ? Auth::user()->role  : null;
     $user_email = Auth::check() ? Auth::user()->email : null;
 
-    // Categories + subcategories for the top nav
-    $navCategories = \App\Models\Category::with('subcategories')->get();
+    // Categories + subcategories + their products (need product count/id to decide
+    // whether a subcategory link should go to the listing page or straight to the
+    // single product it contains).
+    $navCategories = \App\Models\Category::with(['subcategories.products' => function ($q) {
+        $q->select('id', 'subcategory_id');
+    }])->get();
 @endphp
 
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Outfit:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -32,11 +36,37 @@
     .dropdown-toggle[aria-current="page"] { text-decoration: underline; text-underline-offset: 3px; }
 
     .category-links {
-        display: flex;
-        align-items: center;
-        gap: 20px;
-        flex-wrap: wrap;
-    }
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    position: relative; /* ADDED */
+}
+
+/* Update mega menu positioning and scroll behavior */
+.mega { 
+    position: relative; /* CHANGED: keep context predictable */
+} 
+
+.mega-panel {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin: 6px auto 0;
+    width: min(1000px, calc(100vw - 32px));
+    background: #fff;
+    border: 1px solid rgba(0,0,0,.08);
+    border-radius: 12px;
+    box-shadow: 0 18px 40px rgba(0,0,0,.14);
+    padding: 22px 26px;
+    display: none;
+    z-index: 60;
+
+    /* FIXED: Constraints & Internal Scrolling */
+    max-height: calc(85vh - 70px); /* Keeps panel within viewport height */
+    overflow-y: auto;              /* Enables scrolling inside the menu */
+}
 
     .dropdown-menu {
         position: absolute;
@@ -102,6 +132,54 @@
     }
     .dropdown-toggle::after {
         display: none;
+    }
+
+    /* ---------------------------------------------------------------
+     | "Products" mega menu — sits first in .category-links, opens on
+     | click, shows every category as a column with its subcategories
+     | listed underneath. All other category links are untouched.
+     * -------------------------------------------------------------*/
+   
+    .mega.open .mega-panel { display: block; }
+
+    .mega-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 24px;
+    }
+
+    .mega-col-title {
+        display: block;
+        font-weight: 700;
+        font-size: .95rem;
+        color: inherit;
+        text-decoration: none;
+        margin-bottom: 10px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid rgba(0,0,0,.06);
+    }
+    .mega-col-title:hover { opacity: .7; }
+
+    .mega-sub-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .mega-sub-list a {
+        text-decoration: none;
+        color: inherit;
+        opacity: .78;
+        font-size: .88rem;
+    }
+    .mega-sub-list a:hover { opacity: 1; }
+
+    .mega-sub-empty {
+        font-size: .8rem;
+        opacity: .45;
+        font-style: italic;
     }
 
     /* --- Search suggestions dropdown --- */
@@ -198,6 +276,112 @@
         font-weight: 600;
         color: var(--indigo, inherit);
     }
+
+    /* --- Mobile drawer category accordion --- */
+    .drawer .cat-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        list-style: none;
+    }
+    .drawer .cat-summary::-webkit-details-marker { display: none; }
+    .drawer .cat-summary::marker { content: ""; }
+    .drawer .cat-summary .cat-chevron {
+        transition: transform .15s ease;
+        opacity: .6;
+        flex-shrink: 0;
+    }
+    .drawer details[open] > .cat-summary .cat-chevron {
+        transform: rotate(180deg);
+    }
+    @media (max-width: 768px) {
+        .nav-bar {
+            display: none !important;
+        }
+    }
+    .site-header .container {
+        display: flex;
+        align-items: center;
+        flex-wrap: nowrap;
+        gap: 16px;
+    }
+
+    .site-header .brand {
+        flex-shrink: 0;
+    }
+
+    .site-header .search-wrap {
+        flex: 1 1 auto;
+        min-width: 0; /* allows the search box to shrink instead of pushing siblings down */
+    }
+
+    .site-header .nav-cta {
+        flex-shrink: 0;
+        white-space: nowrap;
+        font-size: 0.92rem;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .site-header .icon-row {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+
+    @media (max-width: 992px) {
+        .site-header .nav-cta span,
+        .site-header .nav-cta a {
+            font-size: 0.85rem;
+        }
+        .site-header .container {
+            gap: 10px;
+        }
+    }
+    /* --- Mobile header: logo + menu icon only, no horizontal scroll --- */
+    @media (max-width: 768px) {
+        body {
+            overflow-x: hidden;
+        }
+
+        .site-header .container {
+            flex-wrap: nowrap;
+            gap: 10px;
+        }
+
+        .site-header .search-wrap,
+        .site-header .nav-cta {
+            display: none !important;
+        }
+
+        .site-header .icon-row {
+            gap: 0;
+        }
+
+        .site-header .icon-row .icon-btn {
+            display: none !important;
+        }
+
+        .site-header .icon-row .nav-toggle {
+            display: inline-flex !important;
+        }
+
+        .site-header .brand-logo {
+            width: 140px !important;
+            height: auto;
+        }
+
+        .utility .container {
+            flex-wrap: wrap;
+            gap: 6px;
+            font-size: 0.8rem;
+        }
+        .last_menus{
+            margin-left: auto;
+        }
+    }
 </style>
 
 <a class="skip-link" href="#main">Skip to content</a>
@@ -233,7 +417,20 @@
             <div class="search-suggestions" id="searchSuggestions" role="listbox"></div>
         </div>
 
-        <div class="icon-row">
+        <span class="nav-cta">
+            @auth
+                <form action="{{ route('logout') }}" method="POST" style="display:inline">
+                    @csrf
+                    <button type="submit" style="background:none;border:none;color:inherit;font:inherit;cursor:pointer;padding:0;">Logout</button>
+                </form>
+            @else
+                <a href="{{ url('/login') }}" style="color:inherit;">Login</a>
+                &nbsp;/&nbsp;
+                <a href="{{ url('/signup') }}" style="color:inherit;">Sign Up</a>
+            @endauth
+        </span>
+
+        <div class="icon-row last_menus">
             @auth
                 <a href="{{ url('dashboard') }}" class="icon-btn" aria-label="Account" title="{{ $user_email }}">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>
@@ -262,6 +459,48 @@
 
         <!-- Categories, same look as the "Menu" link, hover to reveal subcategories -->
         <div class="category-links">
+
+            <!-- "Products" mega menu — first item, opens on click, shows every
+                 category as a column with its subcategories underneath. -->
+            <div class="dropdown mega" id="productsMega">
+                <button type="button"
+                        class="dropdown-toggle"
+                        aria-haspopup="true"
+                        aria-expanded="false"
+                        @if(request()->is('products') && !request()->has('category_id') && !request()->has('subcategory_id')) aria-current="page" @endif>
+                    All Products
+                    <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+
+                <div class="mega-panel" role="menu">
+                    <div class="mega-grid">
+                        @foreach($navCategories as $cat)
+                            <div class="mega-col">
+                                <a href="{{ url('products') }}?category_id={{ $cat->id }}" class="mega-col-title">
+                                    {{ $cat->name }}
+                                </a>
+
+                                @if($cat->subcategories->count())
+                                    <ul class="mega-sub-list">
+                                        @foreach($cat->subcategories as $sub)
+                                            @php
+                                                $onlyProduct = $sub->products->count() === 1 ? $sub->products->first() : null;
+                                                $subLink = $onlyProduct
+                                                    ? url('/product/' . $onlyProduct->id)
+                                                    : url('products') . '?subcategory_id=' . $sub->id;
+                                            @endphp
+                                            <li><a href="{{ $subLink }}">{{ $sub->name }}</a></li>
+                                        @endforeach
+                                    </ul>
+                                @else
+                                    <div class="mega-sub-empty">No subcategories</div>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+
             @foreach($navCategories as $cat)
                 <div class="dropdown nav-cat-item">
                     <a href="{{ url('products') }}?category_id={{ $cat->id }}"
@@ -276,7 +515,13 @@
                     @if($cat->subcategories->count())
                         <div class="dropdown-menu" role="menu">
                             @foreach($cat->subcategories as $sub)
-                                <a href="{{ url('products') }}?subcategory_id={{ $sub->id }}" role="menuitem">{{ $sub->name }}</a>
+                                @php
+                                    $onlyProduct = $sub->products->count() === 1 ? $sub->products->first() : null;
+                                    $subLink = $onlyProduct
+                                        ? url('/product/' . $onlyProduct->id)
+                                        : url('products') . '?subcategory_id=' . $sub->id;
+                                @endphp
+                                <a href="{{ $subLink }}" role="menuitem">{{ $sub->name }}</a>
                             @endforeach
                         </div>
                     @endif
@@ -284,6 +529,7 @@
             @endforeach
 
             <!-- "Menu" link: identical styling, opens on click -->
+            @if($user_role == 'admin')
             <div class="dropdown" id="menuDropdown">
                 <button type="button" class="dropdown-toggle" aria-haspopup="true" aria-expanded="false">
                     Menu
@@ -297,31 +543,20 @@
                     @auth
                         <a href="{{ url('orders') }}" @if(request()->is('orders*')) aria-current="page" @endif>All Orders</a>
 
-                        @if($user_role == 'admin')
+                        
                             <hr class="divider">
                             <div class="group-label">Admin</div>
                             <a href="{{ url('product_list') }}" @if(request()->is('product_list')) aria-current="page" @endif>Product List</a>
                             <a href="{{ url('product_form') }}" @if(request()->is('product_form')) aria-current="page" @endif>Add Product</a>
                             <a href="{{ url('categories') }}" @if(request()->is('categories')) aria-current="page" @endif>Add Categories</a>
+                            <a href="{{ url('admin/reviews') }}" @if(request()->is('admin/reviews')) aria-current="page" @endif>All Reviews</a>
                             <a href="{{ route('settings.index') }}" @if(request()->routeIs('settings.index')) aria-current="page" @endif>⚙️ Settings</a>
-                        @endif
+                        
                     @endauth
                 </div>
             </div>
+            @endif
         </div>
-
-        <span class="nav-cta">
-            @auth
-                <form action="{{ route('logout') }}" method="POST" style="display:inline">
-                    @csrf
-                    <button type="submit" style="background:none;border:none;color:inherit;font:inherit;cursor:pointer;padding:0;">Logout</button>
-                </form>
-            @else
-                <a href="{{ url('/login') }}" style="color:inherit;">Login</a>
-                &nbsp;/&nbsp;
-                <a href="{{ url('/signup') }}" style="color:inherit;">Sign Up</a>
-            @endauth
-        </span>
     </div>
 </nav>
 
@@ -332,24 +567,38 @@
         <button class="drawer-close" aria-label="Close menu">Close ✕</button>
     </div>
 
-    <a href="{{ url('products') }}">Products</a>
-    <a href="{{ url('cart') }}">My Cart</a>
-
-    <!-- Categories, collapsible per-category on mobile (no hover on touch) -->
+    <!-- Categories first. Tapping a category only expands/collapses its subcategories
+         (no navigation) unless it has no subcategories, in which case it links straight
+         to that category's products. -->
     @foreach($navCategories as $cat)
-        <details style="margin: 2px 0;">
-            <summary style="cursor:pointer; padding:8px 0;">
-                <a href="{{ url('products') }}?category_id={{ $cat->id }}" style="color:inherit; text-decoration:none;">{{ $cat->name }}</a>
-            </summary>
-            @if($cat->subcategories->count())
+        @if($cat->subcategories->count())
+            <details style="margin: 2px 0;">
+                <summary class="cat-summary" style="cursor:pointer; padding:8px 0; color:inherit;">
+                    {{ $cat->name }}
+                    <svg class="cat-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </summary>
                 <div style="padding-left: 16px;">
                     @foreach($cat->subcategories as $sub)
-                        <a href="{{ url('products') }}?subcategory_id={{ $sub->id }}" style="display:block; padding:6px 0; opacity:.85;">{{ $sub->name }}</a>
+                        @php
+                            $onlyProduct = $sub->products->count() === 1 ? $sub->products->first() : null;
+                            $subLink = $onlyProduct
+                                ? url('/product/' . $onlyProduct->id)
+                                : url('products') . '?subcategory_id=' . $sub->id;
+                        @endphp
+                        <a href="{{ $subLink }}" style="display:block; padding:6px 0; opacity:.85;">{{ $sub->name }}</a>
                     @endforeach
                 </div>
-            @endif
-        </details>
+            </details>
+        @else
+            <a href="{{ url('products') }}?category_id={{ $cat->id }}" style="display:block; padding:8px 0;">{{ $cat->name }}</a>
+        @endif
     @endforeach
+
+    <hr style="margin: var(--s4, 16px) 0; border: none; border-top: 1px solid rgba(0,0,0,.08);">
+
+    <!-- Menu -->
+    <a href="{{ url('products') }}">Products</a>
+    <a href="{{ url('cart') }}">My Cart</a>
 
     @auth
         <a href="{{ url('orders') }}">All Orders</a>
@@ -379,30 +628,46 @@
 
         var dropdowns = document.querySelectorAll('.dropdown');
 
-        // "Menu" link only: opens via click. Category links open via CSS :hover instead.
-        var menuDropdown = document.getElementById('menuDropdown');
-        if (menuDropdown) {
-            var toggle = menuDropdown.querySelector(':scope > .dropdown-toggle');
+        // Click-to-toggle dropdowns: the "Products" mega menu and the admin "Menu" link.
+        // Category links keep opening via CSS :hover, unchanged.
+        var clickDropdowns = [
+            document.getElementById('productsMega'),
+            document.getElementById('menuDropdown')
+        ].filter(Boolean);
+
+        clickDropdowns.forEach(function (dropdown) {
+            var toggle = dropdown.querySelector(':scope > .dropdown-toggle');
+
             toggle.addEventListener('click', function (e) {
                 e.stopPropagation();
-                var isOpen = menuDropdown.classList.toggle('open');
+
+                // Close any other click-toggled dropdown before opening this one
+                clickDropdowns.forEach(function (other) {
+                    if (other !== dropdown) {
+                        other.classList.remove('open');
+                        var otherToggle = other.querySelector(':scope > .dropdown-toggle');
+                        if (otherToggle) otherToggle.setAttribute('aria-expanded', 'false');
+                    }
+                });
+
+                var isOpen = dropdown.classList.toggle('open');
                 toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
             });
 
             document.addEventListener('click', function (e) {
-                if (!menuDropdown.contains(e.target)) {
-                    menuDropdown.classList.remove('open');
+                if (!dropdown.contains(e.target)) {
+                    dropdown.classList.remove('open');
                     toggle.setAttribute('aria-expanded', 'false');
                 }
             });
 
             document.addEventListener('keydown', function (e) {
                 if (e.key === 'Escape') {
-                    menuDropdown.classList.remove('open');
+                    dropdown.classList.remove('open');
                     toggle.setAttribute('aria-expanded', 'false');
                 }
             });
-        }
+        });
 
         // Flip any dropdown (category or Menu) left if its panel would overflow the right edge
         dropdowns.forEach(function (dropdown) {

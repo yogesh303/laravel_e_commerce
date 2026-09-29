@@ -67,7 +67,13 @@
                 <div class="mb-3">
                     <label>Password</label>
                     <input type="password" name="password" class="form-control" placeholder="Enter password" required>
+                    <div class="text-start mt-1">
+                        <a href="{{ route('password.request') }}">Forgot password?</a>
+                    </div>
                 </div>
+                @if (session('status'))
+                    <div class="alert alert-success">{{ session('status') }}</div>
+                @endif
 
                 <div class="d-grid">
                     <button class="btn btn-custom">Login</button>

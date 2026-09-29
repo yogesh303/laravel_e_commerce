@@ -6,7 +6,9 @@ use App\Models\products as ModelsProducts;
 use App\Models\ProductImage;
 use App\Models\ProductOption;
 use App\Models\ProductQuantity;
+use App\Models\Review;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class Products extends Controller
@@ -91,11 +93,41 @@ class Products extends Controller
         return view('productform', ['categories' => $categories]);
     }
 
+    /**
+     * Customer-facing product detail page (resources/views/productdetails.blade.php).
+     * Now also loads reviews + the "can this visitor review it" state.
+     */
     public function productDetails($id)
     {
-        $product = ModelsProducts::with(['images', 'options','quantities'])->findOrFail($id);
-        return view('productdetails', ['product' => $product]);
+        $product = ModelsProducts::with(['images', 'options', 'quantities'])->findOrFail($id);
+
+        $reviews = Review::with('user')
+            ->where('product_id', $id)
+            ->latest()
+            ->get();
+
+        $reviewCount = $reviews->count();
+        $avgRating   = $reviewCount ? round($reviews->avg('rating'), 1) : 0;
+
+        $canReview       = false;
+        $alreadyReviewed = false;
+
+        if (Auth::check()) {
+            $userId          = Auth::id();
+            $alreadyReviewed = Review::userAlreadyReviewed($userId, $id);
+            $canReview       = !$alreadyReviewed && Review::userHasPurchased($userId, $id);
+        }
+
+        return view('productdetails', [
+            'product'         => $product,
+            'reviews'         => $reviews,
+            'reviewCount'     => $reviewCount,
+            'avgRating'       => $avgRating,
+            'canReview'       => $canReview,
+            'alreadyReviewed' => $alreadyReviewed,
+        ]);
     }
+
     public function update(Request $request)
     {
         DB::beginTransaction();

@@ -9,6 +9,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\ReviewController;
 
 
 // Default landing page — show the product catalog to everyone (guest or logged-in)
@@ -21,6 +22,17 @@ Route::post('/login_user',[UserControl::class,'login_user']);
 Route::view('/signup','signup');
 Route::post('/send-otp', [UserControl::class, 'send_otp'])->name('send.otp');
 Route::post('/signup_user', [UserControl::class, 'signup_user'])->name('signup.user');
+
+Route::middleware('guest')->group(function () {
+    Route::get('/forgot-password', [UserControl::class, 'showForgotForm'])->name('password.request');
+    Route::post('/forgot-password', [UserControl::class, 'sendResetLink'])
+        ->middleware('throttle:5,1')
+        ->name('password.email');
+
+    // The route name 'password.reset' is required, Laravel's reset email uses it
+    Route::get('/reset-password/{token}', [UserControl::class, 'showResetForm'])->name('password.reset');
+    Route::post('/reset-password', [UserControl::class, 'resetPassword'])->name('password.update');
+});
 
 Route::middleware(['auth','admin'])->group(function () {
     Route::get('/product_form', [Products::class, 'create']);
@@ -39,6 +51,10 @@ Route::middleware(['auth','admin'])->group(function () {
     Route::delete('/subcategories/{id}', [CategoryController::class, 'destroySubcategory']);
     Route::put('/categories/{id}', [CategoryController::class, 'update']);
     Route::put('/subcategories/{id}', [CategoryController::class, 'updateSubcategory']);
+    Route::get('admin/reviews', [ReviewController::class, 'index'])
+    ->name('reviews.index');
+    Route::delete('admin/reviews/{id}', [ReviewController::class, 'destroy'])
+    ->name('reviews.destroy');
 });
 
 // Public: anyone (guest or logged-in) can browse products and view product details
@@ -72,6 +88,7 @@ Route::get('/cart',[CartController::class,'cart']); // display user cart
 Route::post('/add_quantity',[CartController::class,'add_quantity']); // improve quantity
 Route::get('/cart-remarks/{product}', [CartController::class, 'cart_remarks_form'])->name('cart.remarks.form');
 
+
 Route::middleware('auth')->group(function () {
     Route::post('/order',[CartController::class,'order']); // sussec order and reduce product quantity
     Route::get('/orders',[CartController::class,'order_list']); 
@@ -86,7 +103,11 @@ Route::middleware('auth')->group(function () {
     ->name('order.item.update');
     Route::get('/admin/settings', [SettingController::class, 'index'])->name('settings.index');
     Route::post('/admin/settings', [SettingController::class, 'update'])->name('settings.update');
+    Route::post('/reviews', [ReviewController::class, 'store'])->middleware('auth');
+    Route::post('/reviews', [ReviewController::class, 'store'])
+        ->name('reviews.store');
 });
+
 Route::post('/logout', [UserControl::class, 'logout'])->name('logout');
 
 Route::get('/order/{id}', [CartController::class, 'order_view'])

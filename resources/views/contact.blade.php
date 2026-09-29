@@ -7,6 +7,76 @@
     <title>Help &amp; Contact</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Outfit:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('assets/css/styles.css') }}">
+    <style>
+      /* --- Mobile horizontal-scroll patch --- */
+      html, body {
+        max-width: 100%;
+        overflow-x: hidden;
+      }
+      *, *::before, *::after {
+        box-sizing: border-box;
+      }
+      .container {
+        max-width: 100%;
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+      .contact-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: var(--s6, 24px);
+        max-width: 100%;
+      }
+      @media (min-width: 900px) {
+        .contact-grid {
+          grid-template-columns: 1fr 1.4fr;
+        }
+      }
+      .contact-info, .contact-form {
+        max-width: 100%;
+        min-width: 0;
+      }
+      .info-block {
+        display: flex;
+        gap: 12px;
+        max-width: 100%;
+      }
+      .info-block .value, .info-block a {
+        word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+      .field input,
+      .field select,
+      .field textarea {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+      }
+      textarea {
+        resize: vertical;
+      }
+      .btn--block {
+        width: 100%;
+        max-width: 100%;
+      }
+      /* promo box: kill any overflow from absolute-positioned glow */
+      .contact-info > div[style*="overflow: hidden"] {
+        max-width: 100%;
+      }
+      img, svg {
+        max-width: 100%;
+        height: auto;
+      }
+      table {
+        display: block;
+        max-width: 100%;
+        overflow-x: auto;
+      }
+      @media (max-width: 480px) {
+        h1 { font-size: clamp(1.4rem, 6vw, 2rem); word-break: break-word; }
+        .crumbs { flex-wrap: wrap; }
+      }
+    </style>
 </head>
 <body>
 <x-layout></x-layout>

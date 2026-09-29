@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -7,6 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Products Form</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+      html, body { max-width: 100%; overflow-x: hidden; }
+      .table-responsive table { min-width: 720px; } /* keeps columns from crushing; scrolls inside wrapper instead of page */
+      .table-responsive td, .table-responsive th { white-space: nowrap; }
+      .table-responsive td:nth-child(6) { white-space: normal; } /* Items column keeps wrapping for nested table */
+      .nested-items table { min-width: 0; width: 100%; }
+      .nested-items th, .nested-items td { white-space: normal; }
+    </style>
 </head>
 <body>
 <x-layout></x-layout>
@@ -31,6 +38,7 @@
 <form action="delete_all" method="POST">
     @csrf
 
+    <div class="table-responsive">
     <table class="table table-bordered text-center">
         <thead class="table-dark">
             <tr>
@@ -65,6 +73,7 @@
             <td>{{ $order->created_at->format('d-m-Y') }}</td>
 
             <td>
+                <div class="nested-items">
                 <table class="table table-sm table-bordered">
                     <tr>
                         <th>Product</th>
@@ -80,6 +89,7 @@
                     </tr>
                     @endforeach
                 </table>
+                </div>
             </td>
             <td>
                 <a href="{{ route('order.view', $order->id) }}"
@@ -99,6 +109,7 @@
 
         </tbody>
     </table>
+    </div>
 
 </form>
 
