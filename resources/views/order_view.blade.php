@@ -19,11 +19,63 @@
         .zoomable-img:hover {
             transform: scale(1.03);
         }
+        .track {
+            display: flex;
+            margin: 30px 0 10px;
+        }
+        .track-step {
+            flex: 1;
+            position: relative;
+            text-align: center;
+        }
+        /* connecting line (drawn from previous step to this one) */
+        .track-step:not(:first-child)::before {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: -50%;
+            width: 100%;
+            height: 4px;
+            background: #dee2e6;
+            z-index: 0;
+            transition: background .4s ease;
+        }
+        .track-step.done:not(:first-child)::before {
+            background: #198754;
+        }
+        .track-circle {
+            position: relative;
+            z-index: 1;
+            width: 34px;
+            height: 34px;
+            margin: 0 auto 8px;
+            border-radius: 50%;
+            background: #dee2e6;
+            color: #fff;
+            font-weight: bold;
+            line-height: 34px;
+            transition: all .4s ease;
+        }
+        .track-step.done .track-circle {
+            background: #198754;
+        }
+        .track-step.current .track-circle {
+            box-shadow: 0 0 0 6px rgba(25, 135, 84, .2);
+        }
+        .track-label {
+            font-size: 14px;
+            color: #6c757d;
+        }
+        .track-step.done .track-label {
+            color: #198754;
+            font-weight: 600;
+        }
     </style>
 
 </head>
 
 <body>
+<x-layout></x-layout>
 @if(session('success'))
     <div class="alert alert-success">{{ session('success') }}</div>
 @endif
@@ -140,15 +192,37 @@
 
                 <div class="col-md-6 text-md-end">
 
+                    @php
+                        $steps = [
+                            'placed'           => 'Order Placed',
+                            'out_for_delivery' => 'Out for Delivery',
+                            'delivered'        => 'Delivered',
+                        ];
+                        $currentIndex = array_search(strtolower($order->status), array_keys($steps));
+                        $currentIndex = $currentIndex === false ? 0 : $currentIndex;
+                    @endphp
+
                     <p class="mb-1">
-
                         <strong>Status:</strong>
-
                         <span class="badge bg-success">
-                            {{ ucfirst($order->status) }}
+                            {{ $steps[array_keys($steps)[$currentIndex]] }}
                         </span>
-
                     </p>
+
+                    @if(auth()->user()->role === 'admin')
+                        <form action="{{ route('order.status.update', $order->id) }}" method="POST"
+                            class="d-inline-flex gap-2 mt-2 justify-content-md-end">
+                            @csrf
+                            <select name="status" class="form-select form-select-sm" style="width:190px;">
+                                @foreach($steps as $key => $label)
+                                    <option value="{{ $key }}" {{ $key === strtolower($order->status) ? 'selected' : '' }}>
+                                        {{ $label }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-primary">Update</button>
+                        </form>
+                    @endif
 
                     <p class="mb-1">
 
@@ -172,6 +246,21 @@
 
     </div>
 
+    {{-- Order Tracking --}}
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="track">
+                @foreach($steps as $key => $label)
+                    <div class="track-step {{ $loop->index <= $currentIndex ? 'done' : '' }} {{ $loop->index == $currentIndex ? 'current' : '' }}">
+                        <div class="track-circle">
+                            {{ $loop->index <= $currentIndex ? '✓' : $loop->iteration }}
+                        </div>
+                        <div class="track-label">{{ $label }}</div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    </div>
 
     {{-- Products --}}
     <div class="card shadow-sm">
@@ -545,7 +634,7 @@
     </div>
 
 </div>
-
+<x-footer></x-footer>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>

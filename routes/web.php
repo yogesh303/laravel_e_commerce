@@ -55,6 +55,8 @@ Route::middleware(['auth','admin'])->group(function () {
     ->name('reviews.index');
     Route::delete('admin/reviews/{id}', [ReviewController::class, 'destroy'])
     ->name('reviews.destroy');
+    Route::post('/order/{id}/status', [CartController::class, 'updateStatus'])
+    ->name('order.status.update');
 });
 
 // Public: anyone (guest or logged-in) can browse products and view product details

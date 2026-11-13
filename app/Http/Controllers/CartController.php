@@ -1076,6 +1076,25 @@ public function order_view($id)
 
     return view('order_view', compact('order'));
 }
+public function updateStatus(Request $request, $id)
+{
+    $user = Auth::user();
+
+    // Only admin can change status
+    if (!$user || $user->role !== 'admin') {
+        abort(403);
+    }
+
+    $request->validate([
+        'status' => 'required|in:placed,out_for_delivery,delivered',
+    ]);
+
+    $order = Order::findOrFail($id);
+    $order->status = $request->status;
+    $order->save();
+
+    return back()->with('success', 'Order status updated.');
+}
 public function checkout_razorpay()
 {
     $user = Auth::user();
